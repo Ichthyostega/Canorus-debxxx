@@ -1,0 +1,97 @@
+This package was debianized by Tobias Quathamer <toddy@debian.org> on
+Tue, 31 Mar 2009 11:29:13 +0200.
+
+It was downloaded from <http://www.canorus.org/>
+
+Upstream Authors:
+
+    Matevž Jekovec <matevz.jekovec@gmail.com>
+    Reinhard Katzmann <suamor@web.de>
+    Itay Perl <itay.perl@gmail.com>
+
+Copyright:
+
+    Copyright © 2006-2009 Canorus Development team, consisting of
+    the following persons:
+    Copyright © Matevž Jekovec
+    Copyright © Reinhard Katzmann
+    Copyright © Itay Perl
+    Copyright © Sam Hernandez
+    Copyright © Erlend Aasland
+    Copyright © Georg Rudolph
+    Copyright © Erik Magnus Johansson
+    Copyright © Štefan Sakalík
+
+License:
+
+    This package is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This package is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this package; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+
+On Debian systems, the complete text of the GNU General
+Public License can be found in `/usr/share/common-licenses/GPL-2'.
+
+The Debian packaging is Copyright © 2009, Tobias Quathamer <toddy@debian.org>
+and is licensed under the GPL-2, see above.
+
+The package includes some TrueType fonts of these copyright holders:
+
+Century Schoolbook L (Roman, Italic, Bold, Bold-Italic):
+    Copyright © 1999, (URW)++ Design & Development
+    Copyright © 2001-2005, Cyrillic glyphs added by Valek Filippov
+
+Emmentaler-14:
+    Copyright © LilyPond project
+
+FreeSans:
+    Copyright © 2002, 2003, 2005, Free Software Foundation
+
+All fonts are licensed under the GPL-2, see above.
+
+The package includes some score setting examples in the folder
+/usr/share/doc/canorus/examples/musicxml:
+
+ActorPreludeSample.xml: Copyright © 2004 Polygames
+BrookeWestSample.xml: Copyright © 1995 Dog Dream Music
+Echigo-Jishi.xml: Copyright © 2005 by Tom Potter,
+    Transcription donated to the public domain
+All other .xml files: Copyright © 2002,2003 Recordare LLC
+
+The package includes a copy of RtMidi (realtime MIDI i/o C++ classes).
+
+Copyright: Copyright © 2003-2006, Gary P. Scavone
+
+License:
+
+    Permission is hereby granted, free of charge, to any person
+    obtaining a copy of this software and associated documentation files
+    (the "Software"), to deal in the Software without restriction,
+    including without limitation the rights to use, copy, modify, merge,
+    publish, distribute, sublicense, and/or sell copies of the Software,
+    and to permit persons to whom the Software is furnished to do so,
+    subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be
+    included in all copies or substantial portions of the Software.
+
+    Any person wishing to distribute modifications to the Software is
+    requested to send the modifications to the original developer so that
+    they can be incorporated into the canonical version.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+    ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+    CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+    WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

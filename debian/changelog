@@ -1,0 +1,23 @@
+canorus (0.7-2) unstable; urgency=low
+
+  * Convert to dpkg source format 3.0 (quilt) and remove quilt from
+    Build-Depends
+  * Build-Depend on libasound2-dev instead of libasound-dev
+  * Convert clogosm.png again to 16x16 and 32x32 xpm images, something
+    went wrong the first time
+  * debian/patches:
+    - Remove 50-fix-working-directory-for-lilypond, it's no longer
+      needed with lilypond >= 2.12
+    - Add 60-complete-desktop-file to add more information to
+      upstream's canorus.desktop file
+  * Install canorus.desktop file to provide a menu entry in KDE and
+    GNOME. Closes: #557705
+  * Update Standards-Version to 3.8.3, no changes needed
+
+ -- Tobias Quathamer <toddy@debian.org>  Thu, 26 Nov 2009 16:53:27 +0100
+
+canorus (0.7-1) unstable; urgency=low
+
+  * Initial release (Closes: #461914)
+
+ -- Tobias Quathamer <toddy@debian.org>  Tue, 31 Mar 2009 11:29:13 +0200

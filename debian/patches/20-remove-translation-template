@@ -1,0 +1,16 @@
+Remove the translation template from sources.
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -446,6 +446,12 @@
+ 
+ # Set translation files
+ FILE(GLOB Canorus_Translation_Srcs "lang/*.ts") # lang/*.ts -> Canorus_Translation_Srcs
++# Remove template.ts from sources list, if it's included
++FILE(GLOB Canorus_Translation_Template "lang/template.ts")
++LIST(LENGTH Canorus_Translation_Template Template_Found)
++IF(Template_Found)
++	LIST(REMOVE_ITEM Canorus_Translation_Srcs ${Canorus_Translation_Template})
++ENDIF(Template_Found)
+ STRING(REGEX REPLACE "\\.ts" ".qm" Canorus_Translation_Bins "${Canorus_Translation_Srcs}") # Set Canorus_Translation_Bins to same values as Canorus_Translation_Srcs with different extensions
+ 
+ SET(Canorus_Fonts	# Music fonts needed by Canorus

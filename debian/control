@@ -1,0 +1,37 @@
+Source: canorus
+Section: sound
+Priority: optional
+Maintainer: Tobias Quathamer <toddy@debian.org>
+Build-Depends: debhelper (>= 7), cmake, libasound2-dev, libqt4-dev,
+ zlib1g-dev
+Standards-Version: 3.8.3
+Homepage: http://www.canorus.org/
+
+Package: canorus
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, canorus-data
+Recommends: lilypond
+Suggests: timidity | fluidsynth
+Description: graphical music score editor
+ Canorus is a graphical music score editor written for the Qt4 toolkit.
+ It is a sequel of the well-known music score editor for Linux, NoteEdit.
+ Canorus uses LilyPond for music engraving to achieve a very high quality
+ in the resulting documents.
+ .
+ Canorus offers a number of import and export filters for LilyPond,
+ MusicXML, Midi, NoteEdit and others.
+
+Package: canorus-data
+Architecture: all
+Depends: ${shlibs:Depends}, ${misc:Depends}, ttf-freefont
+Recommends: canorus
+Description: data files for canorus, a graphical music score editor
+ Canorus is a graphical music score editor written for the Qt4 toolkit.
+ It is a sequel of the well-known music score editor for Linux, NoteEdit.
+ Canorus uses LilyPond for music engraving to achieve a very high quality
+ in the resulting documents.
+ .
+ Canorus offers a number of import and export filters for LilyPond,
+ MusicXML, Midi, NoteEdit and others.
+ .
+ This package contains architecture independent data files for canorus.

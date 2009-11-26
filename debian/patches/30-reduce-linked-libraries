@@ -1,0 +1,12 @@
+Reduce linking with unneeded libraries
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -9,6 +9,8 @@
+ # INCLUDE(AddFileDependencies)
+ 
+ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g")
++# Do not link with unneeded libraries
++SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--as-needed")
+ 
+ # Build universal binaries on Mac
+ IF(APPLE)

@@ -1,0 +1,5 @@
+10-remove-extra-docs
+20-remove-translation-template
+30-reduce-linked-libraries
+40-dont-install-userguide
+60-complete-desktop-file
