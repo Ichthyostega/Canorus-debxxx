@@ -1,7 +1,17 @@
+From: Tobias Quathamer <toddy@debian.org>
+Date: Wed, 2 Mar 2011 05:47:43 +0100
+Subject: [PATCH] Reduce linked libraries
+
 Reduce linking with unneeded libraries
+---
+ src/CMakeLists.txt |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 7126dea..0b16ede 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -9,6 +9,8 @@
+@@ -9,6 +9,8 @@ FIND_PACKAGE(Qt4)
  # INCLUDE(AddFileDependencies)
  
  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g")
@@ -10,3 +20,4 @@ Reduce linking with unneeded libraries
  
  # Build universal binaries on Mac
  IF(APPLE)
+-- 

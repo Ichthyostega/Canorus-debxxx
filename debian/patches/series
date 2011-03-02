@@ -1,5 +1,7 @@
-10-remove-extra-docs
-20-remove-translation-template
-30-reduce-linked-libraries
-40-dont-install-userguide
-60-complete-desktop-file
+0001-Remove-extra-documentation.patch
+0002-Remove-translation-template.patch
+0003-Reduce-linked-libraries.patch
+0004-Do-not-install-userguide.patch
+0005-Complete-desktop-file.patch
+0006-Add-lz-and-lpthread-to-linker-flags.patch
+0007-Do-not-update-translation-files.patch

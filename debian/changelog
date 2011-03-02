@@ -1,3 +1,15 @@
+canorus (0.7-3) unstable; urgency=low
+
+  * Add "-lz -lpthread" to linker flags, fixes an FTBFS with binutils-gold.
+    Thanks to Ilya Barygin <barygin@gmail.com> for the patch. Closes: #554082
+  * Use git-buildpackage to handle Debian patches
+  * Update years in debian/copyright
+  * Clean up debian/rules
+  * Switch to debhelper v8
+  * Update Standards-Version to 3.9.1
+
+ -- Tobias Quathamer <toddy@debian.org>  Wed, 02 Mar 2011 10:49:02 +0100
+
 canorus (0.7-2) unstable; urgency=low
 
   * Convert to dpkg source format 3.0 (quilt) and remove quilt from

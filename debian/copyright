@@ -41,7 +41,7 @@ License:
 On Debian systems, the complete text of the GNU General
 Public License can be found in `/usr/share/common-licenses/GPL-2'.
 
-The Debian packaging is Copyright © 2009, Tobias Quathamer <toddy@debian.org>
+The Debian packaging is Copyright © 2009, 2011, Tobias Quathamer <toddy@debian.org>
 and is licensed under the GPL-2, see above.
 
 The package includes some TrueType fonts of these copyright holders:

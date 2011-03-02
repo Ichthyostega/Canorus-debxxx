@@ -1,4 +1,14 @@
-Add some information to upstream's desktop file
+From: Tobias Quathamer <toddy@debian.org>
+Date: Wed, 2 Mar 2011 05:47:43 +0100
+Subject: [PATCH] Complete desktop file
+
+Add some information and translation to upstream's desktop file
+---
+ canorus.desktop |    8 +++++---
+ 1 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/canorus.desktop b/canorus.desktop
+index a392eb5..764b2c2 100644
 --- a/canorus.desktop
 +++ b/canorus.desktop
 @@ -1,14 +1,16 @@
@@ -21,3 +31,4 @@ Add some information to upstream's desktop file
 +Categories=Music;Audio;AudioVideoEditing;Midi;Sequencer;AudioVideo;Qt
  StartupNotify=true
  MimeType=application/x-notes
+-- 

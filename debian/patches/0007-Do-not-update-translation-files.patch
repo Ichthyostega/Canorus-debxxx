@@ -1,0 +1,34 @@
+From: Tobias Quathamer <toddy@debian.org>
+Date: Wed, 2 Mar 2011 07:48:50 +0100
+Subject: [PATCH] Do not update translation files
+
+During the build, translations should not be updated. Otherwise,
+the resulting diff will be huge.
+---
+ src/CMakeLists.txt |   12 ++++++------
+ 1 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index b1891e3..f537633 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -651,12 +651,12 @@ ENDIF(MINGW)
+ ###############
+ # Translation #
+ ###############
+-ADD_CUSTOM_COMMAND(
+-	TARGET canorus
+-	PRE_BUILD
+-	COMMAND ${QT_BINARY_DIR}/lupdate
+-	ARGS -noobsolete ${Canorus_UIC_Srcs} ${Canorus_Srcs} -ts ${Canorus_Translation_Srcs} lang/template.ts
+-)
++#ADD_CUSTOM_COMMAND(
++#	TARGET canorus
++#	PRE_BUILD
++#	COMMAND ${QT_BINARY_DIR}/lupdate
++#	ARGS -noobsolete ${Canorus_UIC_Srcs} ${Canorus_Srcs} -ts ${Canorus_Translation_Srcs} lang/template.ts
++#)
+ ADD_CUSTOM_COMMAND(
+ 	TARGET canorus
+ 	PRE_BUILD
+-- 
