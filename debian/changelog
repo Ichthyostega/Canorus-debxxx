@@ -1,3 +1,17 @@
+canorus (0.7+dfsg+svn1256-1) unstable; urgency=low
+
+  * Imported Upstream version 0.7+dfsg+svn1256
+  * Refresh debian/patches
+  * Use svn checkout for tarball creation
+  * Switch to debhelper v9
+  * Use machine-readable copyright format v1.0
+  * Add git repository URL to debian/control
+  * Use all hardening features in DEB_BUILD_MAINT_OPTIONS
+  * Update to Standards-Version 3.9.3
+  * Remove obsolete download location from watch file
+
+ -- Tobias Quathamer <toddy@debian.org>  Wed, 14 Mar 2012 21:59:20 +0100
+
 canorus (0.7-3) unstable; urgency=low
 
   * Add "-lz -lpthread" to linker flags, fixes an FTBFS with binutils-gold.
