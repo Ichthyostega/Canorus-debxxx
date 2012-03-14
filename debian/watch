@@ -1,5 +1,2 @@
-# See uscan(1) for format
-# Compulsory line, this is a version 3 file
-version=3
-opts="uversionmangle=s/\.R[0-9]+//;s/([0-9])([a-zA-Z])+/$1~$2/" \
-http://download.berlios.de/canorus/canorus_(.*)_source\.tar\.bz2
+# Empty watch file, there's currently no download location available.
+# The tarball used for this release has been created from an svn checkout.
