@@ -12,11 +12,12 @@
 #include <QColor>
 
 #include "export/export.h"
-#include "core/playablelength.h"
-#include "core/diatonicpitch.h"
-#include "core/diatonickey.h"
+#include "score/playablelength.h"
+#include "score/diatonicpitch.h"
+#include "score/diatonickey.h"
 
 class CAMusElement;
+class CAFiguredBassContext;
 
 class CACanorusMLExport : public CAExport {
 public:
@@ -27,6 +28,7 @@ public:
 
 private:
 	void exportVoiceImpl( CAVoice* voice, QDomElement &dVoice );
+	void exportFiguredBass( CAFiguredBassContext *c, QDomElement &domParent );
 	void exportMarks( CAMusElement *associatedElt, QDomElement& domParent );
 	void exportPlayableLength( CAPlayableLength l, QDomElement& domParent );
 	void exportDiatonicPitch( CADiatonicPitch p, QDomElement& domParent );

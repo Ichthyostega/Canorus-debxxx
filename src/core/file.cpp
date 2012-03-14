@@ -8,6 +8,7 @@
 #include "core/file.h"
 #include <QTextStream>
 #include <QFile>
+#include <QBuffer>
 
 /*!
 	\class CAFile
@@ -53,15 +54,16 @@ CAFile::~CAFile() {
 void CAFile::setStreamFromFile( const QString filename ) {
 	setFile( new QFile( filename ) );
 
-	if ( file()->open( QIODevice::ReadOnly ) )
-	{
+	if ( file()->open( QIODevice::ReadOnly ) ) {
 		if(stream() && _deleteStream) {
 			delete stream();
 		}
-		CAFile::setStream( new QTextStream(file()) );
+		setStream( new QTextStream(file()) );
 		_deleteStream = true;
 	}
 }
+
+#include <iostream>
 
 /*!
 	Creates and sets the stream from the file named \a filename.
@@ -71,15 +73,14 @@ void CAFile::setStreamFromFile( const QString filename ) {
 	access QTextStream class, so they call this wrapper instead with a simple string as parameter.
 */
 void CAFile::setStreamToFile( const QString filename ) {
-	if(stream() && _deleteStream)
+	if (stream() && _deleteStream) {
 		delete stream();
+		setStream(0);
+	}
 	setFile( new QFile( filename ) );
 
 	if ( file()->open( QIODevice::WriteOnly ) ) {
-		if(stream() && _deleteStream) {
-			delete stream();
-		}
-		CAFile::setStream( new QTextStream(file()) );
+		setStream( new QTextStream(file()) );
 		_deleteStream = true;
 	}
 }
@@ -88,28 +89,69 @@ void CAFile::setStreamToFile( const QString filename ) {
 	Creates and sets the stream from the given device.
 	Read-write if the given device is not already open.
 */
-void CAFile::setStreamToDevice(QIODevice* device)
-{
-	if(stream() && _deleteStream)
+void CAFile::setStreamToDevice(QIODevice* device) {
+	if (stream() && _deleteStream) {
 		delete stream();
-	if(!device->isOpen())
+		setStream(0);
+	}
+
+	if (!device->isOpen()) {
 		device->open(QIODevice::ReadWrite);
-	CAFile::setStream(new QTextStream(device));
-	_deleteStream = true;
+	}
+
+	if (device->isOpen()) {
+		setStream(new QTextStream(device));
+		_deleteStream = true;
+	}
 }
 
-/**
+/*!
+	Creates and sets a new virtual IO device usually used for exporting document
+	to a string when QTextStream/QIODevice API is not available (eg. when
+	writing external Python plugins).
+	
+	\sa getStreamAsString()
+*/
+void CAFile::setStreamToString() {
+	QBuffer *score = new QBuffer();
+	setStreamToDevice(score);
+}
+
+/*!
+	This function is provided for convenience when QTextStream/QIODevice API is
+	not available (eg. when writing external Python plugins).
+
+	It returns the exported value as UTF-8 encoded string. To use this function
+	first initialize the export filter using setStreamToString().
+
+	\sa setStreamToString()
+*/
+QString CAFile::getStreamAsString() {
+	if (!stream()) {
+		return "";
+	} else {
+		return QString::fromUtf8(static_cast<QBuffer*>(stream()->device())->data());
+	}
+}
+
+/*!
 	Creates and sets the stream from the given device.
 	Read-only if the device is not already open.
 */
-void CAFile::setStreamFromDevice(QIODevice* device)
-{
-	if(stream() && _deleteStream)
+void CAFile::setStreamFromDevice(QIODevice* device) {
+	if (stream() && _deleteStream) {
 		delete stream();
-	if(!device->isOpen())
+		setStream(0);
+	}
+
+	if (!device->isOpen()) {
 		device->open(QIODevice::ReadOnly);
-	CAFile::setStream(new QTextStream(device));
-	_deleteStream = true;
+	}
+
+	if (device->isOpen()) {
+		CAFile::setStream(new QTextStream(device));
+		_deleteStream = true;
+	}
 }
 
 /*!

@@ -1,5 +1,5 @@
 /*!
-	Copyright (c) 2006-2007, Matevž Jekovec, Canorus development team
+	Copyright (c) 2006-2009, Matevž Jekovec, Canorus development team
 	All Rights Reserved. See AUTHORS for a complete list of authors.
 
 	Licensed under the GNU GENERAL PUBLIC LICENSE. See LICENSE.GPL for details.
@@ -15,9 +15,9 @@
 
 #include "import/import.h"
 
-#include "core/diatonicpitch.h"
-#include "core/playablelength.h"
-#include "core/diatonickey.h"
+#include "score/diatonicpitch.h"
+#include "score/playablelength.h"
+#include "score/diatonickey.h"
 
 class CAContext;
 class CAKeySignature;
@@ -71,6 +71,7 @@ private:
 	CANote          *_curNote;
 	CARest          *_curRest;
 	CAMusElement    *_curMusElt;
+	CAMusElement    *_prevMusElt; // previous musElt by depth
 	CAMark          *_curMark;
 	CASlur          *_curTie;
 	CASlur          *_curSlur;

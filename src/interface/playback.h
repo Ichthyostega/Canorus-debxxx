@@ -16,6 +16,7 @@ class CASheet;
 class CAMusElement;
 class CAPlayable;
 class CANote;
+class CATempo;
 
 class CAPlayback : public QThread {
 #ifndef SWIG
@@ -23,7 +24,7 @@ Q_OBJECT
 #endif
 public:
 	CAPlayback( CASheet*, CAMidiDevice* );
-	CAPlayback( CAMidiDevice*, int port );
+	CAPlayback( CAMidiDevice* );
 	~CAPlayback();
 
 	void run();
@@ -51,16 +52,16 @@ signals:
 #endif
 
 private:
+	void initPlayback();
 	void initStreams( CASheet *sheet );
 	void loopUntilPlayable( int i, bool ignoreRepeats=false );
 	void playSelectionImpl();
+	void updateSleepFactor( CATempo *t );
 
-	inline QList<CAMusElement*> streamAt(int idx) { return _stream[idx]; }
-	inline int streamCount() { return _stream.size(); }
+	inline QList<CAMusElement*>& streamAt(int idx) { return _streamList[idx]; }
+	inline const QList< QList<CAMusElement*> >& streamList() { return _streamList; }
 	inline int& streamIdx( int i ) { return _streamIdx[i]; }
-	inline int& curTime( int i ) { return _curTime[i]; }
 	inline int& lastRepeatOpenIdx( int i ) { return _lastRepeatOpenIdx[i]; }
-	inline bool& repeating( int i ) { return _repeating[i]; }
 
 	inline bool stopLock() { return _stopLock; }
 	inline void setStopLock(bool lock) { _stopLock = lock; }
@@ -78,13 +79,14 @@ private:
 	QList<CAMusElement*> _selection;
 
 	int _initTimeStart;
+	float _sleepFactor;
 
-	QList< QList<CAMusElement*> > _stream;
+	QList< QList<CAMusElement*> > _streamList;
 	QList<CAPlayable*> _curPlaying;	// list of currently playing notes and rests
 	int *_streamIdx;
-	bool *_repeating;
+	bool _repeating;
 	int *_lastRepeatOpenIdx;
-	int *_curTime; // multiple curTimes are needed for repeat bars, if staffs aren't synchronized
+	int  _curTime;
 };
 
 #endif /* PLAYBACK_H_ */

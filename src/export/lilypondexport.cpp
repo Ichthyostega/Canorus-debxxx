@@ -1,5 +1,5 @@
 /*!
-	Copyright (c) 2007, Matevž Jekovec, Canorus development team
+	Copyright (c) 2007-2010, Matevž Jekovec, Canorus development team
 	All Rights Reserved. See AUTHORS for a complete list of authors.
 
 	Licensed under the GNU GENERAL PUBLIC LICENSE. See LICENSE.GPL for details.
@@ -12,13 +12,16 @@
 
 #include "export/lilypondexport.h"
 
-#include "core/document.h"
-#include "core/sheet.h"
-#include "core/staff.h"
-#include "core/voice.h"
-#include "core/mark.h"
-#include "core/text.h"
-#include "core/tuplet.h"
+#include "score/document.h"
+#include "score/sheet.h"
+#include "score/staff.h"
+#include "score/voice.h"
+#include "score/mark.h"
+#include "score/articulation.h"
+#include "score/fingering.h"
+#include "score/dynamic.h"
+#include "score/text.h"
+#include "score/tuplet.h"
 
 /*!
 	\class CALilyPondExport
@@ -43,6 +46,11 @@
 CALilyPondExport::CALilyPondExport( QTextStream *out )
  : CAExport(out) {
 	setIndentLevel( 0 );
+	setCurDocument( 0 );
+	_voltaFunctionWritten = false;
+	_voltaBracketFinishAtRepeat = false;
+	_voltaBracketFinishAtBar = false;
+	_timeSignatureFound = false;
 }
 
 /*!
@@ -57,6 +65,7 @@ void CALilyPondExport::exportVoiceImpl(CAVoice *v) {
 	_lastPlayableLength = CAPlayableLength::Undefined;
 	bool anacrusisCheck = true;	// process upbeat eventually
 	CATimeSignature *time = 0;
+	int barNumber = 1;
 
 	// Write \relative note for the first note
 	_lastNotePitch = writeRelativeIntro();
@@ -66,60 +75,76 @@ void CALilyPondExport::exportVoiceImpl(CAVoice *v) {
 	indentMore();
 	indent();
 
-	for (int i=0; i<v->musElementCount(); i++, out() << " ") { // append blank after each element
+	for (int i=0; i<v->musElementList().size(); i++, out() << " ") { // append blank after each element
 		// (CAMusElement)
-		switch (v->musElementAt(i)->musElementType()) {
-			case CAMusElement::Clef: {
-				// CAClef
-				CAClef *clef = static_cast<CAClef*>(v->musElementAt(i));
-				if (clef->timeStart()!=_curStreamTime) break;	//! \todo If the time isn't the same, insert hidden rests to fill the needed time
-				out() << "\\clef \"";
-				out() << clefTypeToLilyPond( clef->clefType(), clef->c1(), clef->offset() );
-				out() << "\"";
+		switch (v->musElementList()[i]->musElementType()) {
+		case CAMusElement::Clef: {
+			// CAClef
+			CAClef *clef = static_cast<CAClef*>(v->musElementList()[i]);
+			if (clef->timeStart()!=_curStreamTime) break;	//! \todo If the time isn't the same, insert hidden rests to fill the needed time
+			out() << "\\clef \"";
+			out() << clefTypeToLilyPond( clef->clefType(), clef->c1(), clef->offset() );
+			out() << "\"";
 
-				break;
-			}
-			case CAMusElement::KeySignature: {
-				// CAKeySignature
-				CAKeySignature *key = static_cast<CAKeySignature*>(v->musElementAt(i));
-				if (key->timeStart()!=_curStreamTime) break;	//! \todo If the time isn't the same, insert hidden rests to fill the needed time
-				out() << "\\key "
-				    << diatonicPitchToLilyPond( key->diatonicKey().diatonicPitch() ) << " "
-				    << diatonicKeyGenderToLilyPond( key->diatonicKey().gender() );
+			break;
+		}
+		case CAMusElement::KeySignature: {
+			// CAKeySignature
+			CAKeySignature *key = static_cast<CAKeySignature*>(v->musElementList()[i]);
+			if (key->timeStart()!=_curStreamTime) break;	//! \todo If the time isn't the same, insert hidden rests to fill the needed time
+			out() << "\\key "
+				<< diatonicPitchToLilyPond( key->diatonicKey().diatonicPitch() ) << " "
+				<< diatonicKeyGenderToLilyPond( key->diatonicKey().gender() );
 
-				break;
-			}
-			case CAMusElement::TimeSignature: {
-				// CATimeSignature, remember for anacrusis processing
-				time = static_cast<CATimeSignature*>(v->musElementAt(i));
-				if (time->timeStart()!=_curStreamTime) break;	//! \todo If the time isn't the same, insert hidden rests to fill the needed time
-				out() << "\\time " << time->beats() << "/" << time->beat();
+			break;
+		}
+		case CAMusElement::TimeSignature: {
+			// CATimeSignature, remember for anacrusis processing
+			time = static_cast<CATimeSignature*>(v->musElementList()[i]);
+			if (time->timeStart()!=_curStreamTime) break;	//! \todo If the time isn't the same, insert hidden rests to fill the needed time
+			out() << "\\time " << time->beats() << "/" << time->beat();
+			// set this flag to allow the time signature engraver
+			_timeSignatureFound = true;
 
-				break;
-			}
-			case CAMusElement::Barline: {
-				// CABarline
-				CABarline *bar = static_cast<CABarline*>(v->musElementAt(i));
-				if (bar->timeStart()!=_curStreamTime) break;	//! \todo If the time isn't the same, insert hidden rests to fill the needed time
-				if (bar->barlineType() == CABarline::Single)
-					out() << "|";
-				else
-					out() << "\\bar \"" << barlineTypeToLilyPond(bar->barlineType()) << "\"";
+			break;
+		}
+		case CAMusElement::Barline: {
+			// CABarline
+			CABarline *bar = static_cast<CABarline*>(v->musElementList()[i]);
+			if (bar->timeStart()!=_curStreamTime) break;	//! \todo If the time isn't the same, insert hidden rests to fill the needed time
 
-				break;
+			if ( _voltaBracketFinishAtRepeat &&
+					(bar->barlineType() == CABarline::RepeatClose || bar->barlineType() == CABarline::RepeatCloseOpen)) {
+				out() << " \\set Score.repeatCommands = #'((volta #f))  ";
+				_voltaBracketFinishAtRepeat = false;
 			}
+			if ( _voltaBracketFinishAtBar ) {
+				out() << " \\set Score.repeatCommands = #'((volta #f))  ";
+				_voltaBracketFinishAtBar = false;
+			}
+
+			if (bar->barlineType() == CABarline::Single)
+				out() << "| % bar " << barNumber << "\n	";
+			else
+				out() << "\\bar \"" << barlineTypeToLilyPond(bar->barlineType()) << "\"" << " % bar "<< barNumber << "\n	";
+			barNumber++;
+
+			// set this flag to allow the time signature engraver and bar line engraver
+			_timeSignatureFound = true;
+			break;
+		}
 		}
 
-		if ( v->musElementAt(i)->isPlayable() ) {
-
+		if ( v->musElementList()[i]->isPlayable() ) {
 			if (anacrusisCheck) {			// first check upbeat bar, only once
 				doAnacrusisCheck( time );
 				anacrusisCheck = false;
 			}
-			exportPlayable( static_cast<CAPlayable*>(v->musElementAt(i)) );
+			exportVolta( v->musElementList()[i] );	// A volta bracket has to come before a playable
+			exportPlayable( static_cast<CAPlayable*>(v->musElementList()[i]) );
+		} else {
+			exportMarks(v->musElementList()[i]);
 		}
-
-		exportMarks(v->musElementAt(i));
 	}
 
 	// end of the voice block
@@ -151,6 +176,9 @@ void CALilyPondExport::exportPlayable( CAPlayable *elt ) {
 
 		if (note->tieStart())
 			out() << "~";
+
+		// export note-specific marks
+		exportNoteMarks( note );
 
 		_lastNotePitch = note->diatonicPitch();
 		if (!note->isPartOfChord())
@@ -186,6 +214,11 @@ void CALilyPondExport::exportPlayable( CAPlayable *elt ) {
 			out() << "\\(";
 		}
 
+		// export chord marks at the end
+		if (!note->isPartOfChord() || note->isLastInChord()) {
+			exportMarks( note->getChord()[0] );
+		}
+
 		// add to the stream time, if the note is not part of the chord or is the last one in the chord
 		if (!note->isPartOfChord() ||
 		    (note->isPartOfChord() && note->isLastInChord()) )
@@ -204,6 +237,8 @@ void CALilyPondExport::exportPlayable( CAPlayable *elt ) {
 			out() << playableLengthToLilyPond( rest->playableLength() );
 		}
 
+		exportMarks( rest );
+
 		_lastPlayableLength = rest->playableLength();
 		_curStreamTime += rest->timeLength();
 
@@ -217,7 +252,12 @@ void CALilyPondExport::exportPlayable( CAPlayable *elt ) {
 }
 
 /*!
-	Exports the music element's \a elt marks.
+	Exports the marks for the given \a elt chord, rest or non-playable music
+	element.
+
+	For exporting note-specific marks (eg. fingering), see exportNoteMarks().
+
+	\sa exportNoteMarks()
 */
 void CALilyPondExport::exportMarks( CAMusElement *elt ) {
 	for (int i=0; i<elt->markList().size(); i++) {
@@ -225,11 +265,97 @@ void CALilyPondExport::exportMarks( CAMusElement *elt ) {
 
 		switch ( curMark->markType() ) {
 		case CAMark::Text: {
-			out() << "^\"" << static_cast<CAText*>(curMark)->text() << "\" ";
+
+			// don't export the mark when it is an volta bracket and was sent out already before the playable
+			QRegExp vr = QRegExp(_regExpVoltaRepeat);
+			QRegExp vb = QRegExp(_regExpVoltaBar);
+			if (vr.indexIn(  qPrintable( static_cast<CAText*>(curMark)->text()) ) < 0 &&
+				vb.indexIn(  qPrintable( static_cast<CAText*>(curMark)->text()) ) < 0) {
+				out() << "^\"" << static_cast<CAText*>(curMark)->text() << "\" ";
+			}
+			break;
+		}
+		case CAMark::Dynamic: {
+			CADynamic *d = static_cast<CADynamic*>(curMark);
+			if ( CADynamic::dynamicTextFromString(d->text())==CADynamic::Custom ) break;
+
+			out() << "\\";
+			out() << d->text();
+			out() << " ";
 			break;
 		}
 		case CAMark::RehersalMark: {
 			out() << "\\mark \\default ";
+			break;
+		}
+		case CAMark::Fermata: {
+			out() << "\\fermata ";
+			break;
+		}
+		case CAMark::Articulation: {
+			switch (static_cast<CAArticulation*>(curMark)->articulationType()) {
+			case CAArticulation::Accent:
+				out() << "-> "; break;
+			case CAArticulation::Marcato:
+				out() << "-^ "; break;
+			case CAArticulation::Staccato:
+				out() << "-. "; break;
+			case CAArticulation::Tenuto:
+				out() << "-- "; break;
+			}
+
+			break;
+		}
+		}
+	}
+}
+
+/*!
+	Exports the note-specific marks like fingering.
+
+	\sa exportMarks()
+ */
+void CALilyPondExport::exportNoteMarks( CANote *elt ) {
+	for (int i=0; i<elt->markList().size(); i++) {
+		CAMark *curMark = elt->markList()[i];
+
+		switch ( curMark->markType() ) {
+		case CAMark::Fingering: {
+			CAFingering::CAFingerNumber n = static_cast<CAFingering*>(curMark)->finger();
+			if ( n<1 || n>5 ) break;
+
+			out() << "-";
+			out() << QString::number( static_cast<CAFingering*>(curMark)->finger() );
+			out() << " ";
+			break;
+		}
+		}
+	}
+}
+
+/*!
+	Exports a volta bracket which is currently just a \a elt mark beginning with voltaBar or voltaRepeat.
+*/
+void CALilyPondExport::exportVolta( CAMusElement *elt ) {
+	for (int i=0; i<elt->markList().size(); i++) {
+		CAMark *curMark = elt->markList()[i];
+
+		switch ( curMark->markType() ) {
+		case CAMark::Text: {
+
+			QRegExp vr = QRegExp(_regExpVoltaRepeat);
+			QRegExp vb = QRegExp(_regExpVoltaBar);
+			QString txt;
+			if (vb.indexIn(  qPrintable( static_cast<CAText*>(curMark)->text()) ) >= 0) {
+				txt = vb.cap(1);
+				_voltaBracketFinishAtBar = true;
+			} else if (vr.indexIn(  qPrintable( static_cast<CAText*>(curMark)->text()) ) >= 0) {
+				txt = vr.cap(1);
+				_voltaBracketFinishAtRepeat = true;
+			}
+			if ( _voltaBracketFinishAtRepeat || _voltaBracketFinishAtBar ) {
+				out() << "\\voltaStart \\markup \\text { \""<< txt << "\" }  ";
+			};
 			break;
 		}
 		}
@@ -262,9 +388,9 @@ void CALilyPondExport::exportLyricsContextBlock( CALyricsContext *lc ) {
 	Exports the syllables only without the SopranoLyircsOne = {} frame.
 */
 void CALilyPondExport::exportLyricsContextImpl( CALyricsContext *lc ) {
-	for (int i=0; i<lc->syllableCount(); i++) {
+	for (int i=0; i<lc->syllableList().size(); i++) {
 		if (i>0) out() << " "; // space between syllables
-		out() << syllableToLilyPond(lc->syllableAt(i));
+		out() << syllableToLilyPond(lc->syllableList()[i]);
 	}
 }
 
@@ -286,14 +412,14 @@ void CALilyPondExport::doAnacrusisCheck(CATimeSignature *time) {
 
 				int oneBar = time->beats()*beatNoteLen;
 				int barlen = 0;
-				for (int i=0; i<curVoice()->musElementCount(); i++) {
-					if (curVoice()->musElementAt(i)->isPlayable()) {
-						barlen += curVoice()->musElementAt(i)->timeLength();
+				for (int i=0; i<curVoice()->musElementList().size(); i++) {
+					if (curVoice()->musElementList()[i]->isPlayable()) {
+						barlen += curVoice()->musElementList()[i]->timeLength();
 					}
 					// if it's a whole bar or beyond no upbeat (probably a staff without barlines)
 					if (barlen >= oneBar) return;
 
-					if (curVoice()->musElementAt(i)->musElementType() == CAMusElement::Barline) break;
+					if (curVoice()->musElementList()[i]->musElementType() == CAMusElement::Barline) break;
 				}
 				CAPlayableLength res = CAPlayableLength( CAPlayableLength::HundredTwentyEighth );
 				out() << "\\partial "
@@ -312,15 +438,15 @@ CADiatonicPitch CALilyPondExport::writeRelativeIntro() {
 
 	// find the first playable element and set the key signature if found any
 	for ( i=0;
-	      (i<curVoice()->musElementCount() &&
-	      (curVoice()->musElementAt(i)->musElementType()!=CAMusElement::Note));
+	      (i<curVoice()->musElementList().size() &&
+	      (curVoice()->musElementList()[i]->musElementType()!=CAMusElement::Note));
 	      i++);
 
 	// no playable elements present, return default c' pitch
-	if (i==curVoice()->musElementCount())
+	if (i==curVoice()->musElementList().size())
 		return CADiatonicPitch( 28 );
 
-	CADiatonicPitch notePitch = static_cast<CANote*>(curVoice()->musElementAt(i))->diatonicPitch();
+	CADiatonicPitch notePitch = static_cast<CANote*>(curVoice()->musElementList()[i])->diatonicPitch();
 	notePitch.setNoteName( ((notePitch.noteName() + 3) / 7) * 7 );
 	out() << "\\relative "
 	      << relativePitchToString( notePitch, CADiatonicPitch(21) ) << " "; // LilyPond default C is c1
@@ -418,7 +544,7 @@ const QString CALilyPondExport::playableLengthToLilyPond( CAPlayableLength playa
 	QString length;
 	switch (playableLength.musicLength()) {
 		case CAPlayableLength::Breve:
-			length = "0";
+			length = "\\breve";
 			break;
 		case CAPlayableLength::Whole:
 			length = "1";
@@ -465,8 +591,12 @@ const QString CALilyPondExport::diatonicPitchToLilyPond( CADiatonicPitch pitch )
 	for (int i=0; i > pitch.accs(); i--) {
 		if ( (name == "e") || (name == "a") )
 			name += "s";	// for pitches E and A, only append single -s the first time
+		/*
+		// this seems to be language dependent, or just not like this, taken out for now -- Georg
+		//
 		else if (name[0]=='a')
 			name += "as";	// for pitch A, append -as instead of -es
+		*/
 		else
 			name += "es";	// otherwise, append normally as many es-es as necessary
 	}
@@ -518,14 +648,19 @@ const QString CALilyPondExport::barlineTypeToLilyPond(CABarline::CABarlineType t
 }
 
 const QString CALilyPondExport::syllableToLilyPond( CASyllable *s ) {
-	QString ret = (s->text().isEmpty()?"_":s->text());
+	QString text = s->text();
+	// escape Lilys non-parsable characters
+	text = text.replace("\"", "\\\"");
+
+	// wrap the text with quotes
+	text = (QString("\"")+text+"\"");
 
 	if (s->hyphenStart())
-		ret += " --";
+		text += " --";
 	else if (s->melismaStart())
-		ret += " __";
+		text += " __";
 
-	return ret;
+	return text;
 }
 
 /*!
@@ -533,10 +668,12 @@ const QString CALilyPondExport::syllableToLilyPond( CASyllable *s ) {
 */
 void CALilyPondExport::exportDocumentImpl(CADocument *doc)
 {
-	if ( doc->sheetCount() < 1 ) {
+	out().setCodec("UTF-8");
+	if ( doc->sheetList().size() < 1 ) {
 		//TODO: no sheets, raise an error
 		return;
 	}
+	setCurDocument( doc );
 
 	// Print file name and Canorus version in comments at the top of the file
 	out() << "% This document was generated by Canorus, version " << CANORUS_VERSION << "\n";
@@ -547,7 +684,7 @@ void CALilyPondExport::exportDocumentImpl(CADocument *doc)
 	writeDocumentHeader();
 
 	// For now only export the first sheet of the document
-	exportSheetImpl( doc->sheetAt( 0 ) );
+	exportSheetImpl( doc->sheetList()[ 0 ] );
 }
 
 
@@ -556,17 +693,36 @@ void CALilyPondExport::exportDocumentImpl(CADocument *doc)
 */
 void CALilyPondExport::exportSheetImpl(CASheet *sheet)
 {
+	out().setCodec("UTF-8");
 	setCurSheet( sheet );
 
+	// we need to check if the document is not set, for example at exporting the first sheet
+	if (!curDocument()) {
+
+		setCurDocument( sheet->document() );
+	}
+
+	// Print file name and Canorus version in comments at the top of the file
+	out() << "% This document was generated by Canorus, version " << CANORUS_VERSION << "\n";
+
+	// Version of Lilypond syntax being generated.
+	out() << "\\version \"2.10.0\"\n";
+
+	writeDocumentHeader();
+
+	// Write the volta helper function in case we need it
+	if (!_voltaFunctionWritten)
+		voltaFunction();
+
 	// Export voices as Lilypond variables: \StaffOneVoiceOne = \relative c { ... }
-	for ( int c = 0; c < sheet->contextCount(); ++c ) {
+	for ( int c = 0; c < sheet->contextList().size(); ++c ) {
 		setCurContextIndex( c );
-		switch (sheet->contextAt(c)->contextType()) {
+		switch (sheet->contextList()[c]->contextType()) {
 			case CAContext::Staff:
-				exportStaffVoices( static_cast<CAStaff*>(sheet->contextAt( c )) );
+				exportStaffVoices( static_cast<CAStaff*>(sheet->contextList()[c]) );
 				break;
 			case CAContext::LyricsContext:
-				exportLyricsContextBlock( static_cast<CALyricsContext*>(sheet->contextAt( c )) );
+				exportLyricsContextBlock( static_cast<CALyricsContext*>(sheet->contextList()[c]) );
 				break;
 		}
 	}
@@ -581,14 +737,14 @@ void CALilyPondExport::writeDocumentHeader() {
 	out() << "\n\\header {\n";
 	indentMore();
 
-	indent(); out() << "title          = " << markupString( exportedDocument()->title() ) << "\n";
-	indent(); out() << "subtitle       = " << markupString( exportedDocument()->subtitle() ) << "\n";
-	indent(); out() << "composer       = " << markupString( exportedDocument()->composer() ) << "\n";
-	indent(); out() << "arranger       = " << markupString( exportedDocument()->arranger().isEmpty()?"":(tr("arr.", "arrangement")+" "+exportedDocument()->arranger()) ) << "\n";
-	indent(); out() << "poet           = " << markupString( exportedDocument()->poet() ) << "\n";
-	indent(); out() << "texttranslator = " << markupString( exportedDocument()->textTranslator() ) << "\n";
-	indent(); out() << "dedication     = " << markupString( exportedDocument()->dedication() ) << "\n";
-	indent(); out() << "copyright      = " << markupString( exportedDocument()->copyright() ) << "\n";
+	indent(); out() << "title          = " << markupString( curDocument()->title() ) << "\n";
+	indent(); out() << "subtitle       = " << markupString( curDocument()->subtitle() ) << "\n";
+	indent(); out() << "composer       = " << markupString( curDocument()->composer() ) << "\n";
+	indent(); out() << "arranger       = " << markupString( curDocument()->arranger().isEmpty()?"":(tr("arr.", "arrangement")+" "+curDocument()->arranger()) ) << "\n";
+	indent(); out() << "poet           = " << markupString( curDocument()->poet() ) << "\n";
+	indent(); out() << "texttranslator = " << markupString( curDocument()->textTranslator() ) << "\n";
+	indent(); out() << "dedication     = " << markupString( curDocument()->dedication() ) << "\n";
+	indent(); out() << "copyright      = " << markupString( curDocument()->copyright() ) << "\n";
 	indentLess();
 
 	out() << "}\n";
@@ -616,8 +772,8 @@ QString CALilyPondExport::escapeWeirdChars( QString in ) {
 */
 void CALilyPondExport::exportStaffVoices(CAStaff *staff)
 {
-	for ( int v = 0; v < staff->voiceCount(); ++v ) {
-		setCurVoice( staff->voiceAt( v ) );
+	for ( int v = 0; v < staff->voiceList().size(); ++v ) {
+		setCurVoice( staff->voiceList()[v] );
 
 		// Print Canorus voice name as a comment to help with debugging/tweaking
 		indent();
@@ -678,7 +834,7 @@ void CALilyPondExport::voiceVariableName( QString &name, int staffNum, int voice
 void CALilyPondExport::exportScoreBlock( CASheet *sheet ) {
 	out() << "\n\\score {\n";
 	indentMore();
-	int contextCount = sheet->contextCount();
+	int contextCount = sheet->contextList().size();
 	if ( contextCount < 1 ) {
 		out() << "% No Contexts. This should probably raise an error.\n";
 	}
@@ -690,7 +846,7 @@ void CALilyPondExport::exportScoreBlock( CASheet *sheet ) {
 
 		// Output each staff
 		for( int c = 0; c < contextCount; ++c ) {
-			setCurContext( sheet->contextAt( c ) );
+			setCurContext( sheet->contextList()[c] );
 
 			switch (curContext()->contextType()) {
 				case CAContext::Staff: {
@@ -701,7 +857,7 @@ void CALilyPondExport::exportScoreBlock( CASheet *sheet ) {
 					indentMore();
 
 					// More than one voice? Add simultaneous symbol
-					int voiceCount = s->voiceCount();
+					int voiceCount = s->voiceList().size();
 					if ( voiceCount > 1 ) {
 						indent();
 						out() <<  "<<\n" ;
@@ -712,7 +868,7 @@ void CALilyPondExport::exportScoreBlock( CASheet *sheet ) {
 					for( int v = 0; v < voiceCount; ++v ) {
 
 						// Print Canorus voice name as a comment to aid with debugging etc.
-						QString curVoiceName( s->voiceAt( v )->name() );
+						QString curVoiceName( s->voiceList()[v]->name() );
 						indent();
 						out() << "% " << curVoiceName << "\n";
 
@@ -723,6 +879,12 @@ void CALilyPondExport::exportScoreBlock( CASheet *sheet ) {
 							curVoiceLilyCommand.setNum( v + 1 );
 							curVoiceLilyCommand = "\\voice" + curVoiceLilyCommand;
 							spellNumbers( curVoiceLilyCommand );
+						}
+						
+						// disable autoBeam, if lyrics applied to voice because beams mean melisma singing for singers
+						if ( s->voiceList()[v]->lyricsContextList().size() ) {
+							if (!curVoiceLilyCommand.isEmpty()) { curVoiceLilyCommand += " "; }
+							curVoiceLilyCommand += "\\autoBeamOff";
 						}
 
 						// Print Lily variable name
@@ -775,7 +937,7 @@ void CALilyPondExport::exportScoreBlock( CASheet *sheet ) {
 			}
 
 			CALyricsContext *lc;
-			if (lc = dynamic_cast<CALyricsContext*>(sheet->contextAt( i ))) {
+			if (lc = dynamic_cast<CALyricsContext*>(sheet->contextList()[ i ])) {
 				QString lcName = lc->name();
 				spellNumbers(lcName);
 
@@ -802,6 +964,38 @@ void CALilyPondExport::exportScoreBlock( CASheet *sheet ) {
 
 	// End score block
 	out() << "}\n";
+
+	// Conditional layout block to supress default time signature and default bar lines.
+	if (!_timeSignatureFound) {
+
+		out() << "\n";
+		out() << "\\layout {\n";
+		out() << "	\\context {\n";
+		out() << "		\\Staff\n";
+		out() << "		\\remove \"Time_signature_engraver\"\n";
+		out() << "		\\remove \"Bar_engraver\"\n";
+		out() << "	}\n";
+		out() << "}\n";
+    }
+
+	// We put some syntax reminders how to adjust the music on the page.
+	// Can go away if we have a proper gui for setting this.
+	out() << "\n";
+	out() << "% To adjust the points size of notes and fonts, it can be done like this:\n";
+	out() << "% #(set-global-staff-size 16.0)\n";
+	out() << "\n";
+	out() << "% Some examples to adjust the page size:\n";
+	out() << "% \\paper { #(set-paper-size \"a3\") }\n";
+	out() << "% \\paper { #(set-paper-size \"a4\" 'landscape) }\n";
+	out() << "% But to move the music on the page this needs to be done:\n";
+	out() << "% \\paper{\n";
+	out() << "%	paper-width = 16\\cm\n";
+	out() << "%	line-width = 12\\cm\n";
+	out() << "%	left-margin = 2\\cm\n";
+	out() << "%	top-margin = 3\\cm\n";
+	out() << "%	bottom-margin = 3\\cm\n";
+	out() << "%	ragged-last-bottom = ##t\n";
+	out() << "% }\n\n";
 }
 
 
@@ -833,3 +1027,29 @@ void CALilyPondExport::spellNumbers( QString &s )
 	s.replace( "8" , "Eight" );
 	s.replace( "9" , "Nine" );
 }
+
+void CALilyPondExport::voltaFunction( void )
+{
+	out() << "\n";
+	out() << "% Volta: Read about a preliminary hack to export volta brackets to lilypond:\n";
+	out() << "% If you put a text mark with the name 'voltaRepeat xyz' or 'voltaBar xyz' on a note,\n";
+	out() << "% then a volta bracket will appear.\n";
+	out() << "% voltaRepeat lasts until the next repeat bar line, voltaBar until the next bar line.\n";
+	out() << "% See lilypond example voltaCustom.\n";
+	out() << "%\n";
+	out() << "voltaStart =\n";
+   	out() << "	#(define-music-function (parser location repMarkupA ) (markup? )\n";
+	out() << "		#{\n";
+	out() << "			\\set Score.repeatCommands = #(list (list 'volta $repMarkupA) )\n";
+	out() << "		#})\n";
+	out() << "% Usage in lilypond:\n";
+	out() << "% Start volta:      \\voltaStart \\markup \\text \\italic { \"first time\" }\n";
+	out() << "% End volta:        \\set Score.repeatCommands = #'((volta #f))\n";
+	out() << "\n";
+
+	_voltaFunctionWritten = true;
+}
+
+const QString CALilyPondExport::_regExpVoltaRepeat = QString("voltaRepeat (.*)");
+const QString CALilyPondExport::_regExpVoltaBar = QString("voltaBar (.*)");
+

@@ -14,8 +14,8 @@
 #include <QHash>
 #include <QMultiHash>
 
-#include "core/playablelength.h"
-#include "core/diatonicpitch.h"
+#include "score/playablelength.h"
+#include "score/diatonicpitch.h"
 #include "import/import.h"
 
 class CADocument;
@@ -24,6 +24,7 @@ class CAStaff;
 class CAClef;
 class CAKeySignature;
 class CATimeSignature;
+class CATempo;
 
 class CAMusicXmlImport: public CAImport, private QXmlStreamReader {
 public:
@@ -49,7 +50,9 @@ private:
 	void readAttributes( QString partId );
 	void readNote( QString partId, int );
 	void readForward( QString partId, int );
+	void readSound( QString partId );
 	CAVoice *addVoiceIfNeeded( QString partId, int staff, int voice );
+	void     addStavesIfNeeded( QString partId, int staves );
 
 	QString         _musicXmlVersion;
 
@@ -59,10 +62,11 @@ private:
 	QHash<QString, QHash<int, CAClef*> > _partMapClef; // part name -> map of staff number : last clef
 	QHash<QString, QHash<int, CAKeySignature*> > _partMapKeySig; // part name -> map of staff number : last keysig
 	QHash<QString, QHash<int, CATimeSignature*> > _partMapTimeSig; // part name -> map of staff number : last timesig
-	QHash<QString, int> _midiChannel;
-	QHash<QString, int> _midiProgram;
+	QHash<QString, int> _midiChannel; // 1-16
+	QHash<QString, int> _midiProgram; // 1-128
 	QHash<QString, QString> _partName;
 	QHash<QString, int> _divisions; // part name -> divisions
+	int _tempoBpm; // current tempo buffer, append to first found note, set to -1 then
 };
 
 #endif /* MUSICXMLIMPORT_H_ */

@@ -9,29 +9,30 @@
 
 #ifndef MUSELEMENTFACTORY_H_
 #define MUSELEMENTFACTORY_H_
-#include "core/barline.h"
+#include "score/barline.h"
 
-#include "core/staff.h"
-#include "core/muselement.h"
-#include "core/clef.h"
-#include "core/keysignature.h"
-#include "core/timesignature.h"
-#include "core/voice.h"
-#include "core/rest.h"
-#include "core/slur.h"
-#include "core/functionmark.h"
-#include "core/lyricscontext.h"
-#include "core/syllable.h"
-#include "core/mark.h"
-#include "core/articulation.h"
-#include "core/fermata.h"
-#include "core/tempo.h"
-#include "core/ritardando.h"
-#include "core/crescendo.h"
-#include "core/repeatmark.h"
-#include "core/fingering.h"
-#include "core/playablelength.h"
-#include "core/diatonickey.h"
+#include "score/staff.h"
+#include "score/muselement.h"
+#include "score/clef.h"
+#include "score/keysignature.h"
+#include "score/timesignature.h"
+#include "score/voice.h"
+#include "score/rest.h"
+#include "score/slur.h"
+#include "score/figuredbassmark.h"
+#include "score/functionmark.h"
+#include "score/lyricscontext.h"
+#include "score/syllable.h"
+#include "score/mark.h"
+#include "score/articulation.h"
+#include "score/fermata.h"
+#include "score/tempo.h"
+#include "score/ritardando.h"
+#include "score/crescendo.h"
+#include "score/repeatmark.h"
+#include "score/fingering.h"
+#include "score/playablelength.h"
+#include "score/diatonickey.h"
 
 class CAMusElement;
 
@@ -74,14 +75,14 @@ public:
 	                    bool addToChord
 	                  );
 
-	static void placeAutoBar( CAPlayable* elt );
-
 	bool configureTuplet( QList<CAPlayable*> listOfNotes );
 
 	bool configureSlur( CAStaff *staff,
 	                    CANote *noteStart, CANote *noteEnd );
 
 	bool configureMark( CAMusElement *elt );
+
+	bool configureFiguredBassNumber( CAFiguredBassMark *fbm );
 
 	bool configureFunctionMark( CAFunctionMarkContext *fmc,
 	                               int timeStart, int timeLength );
@@ -171,6 +172,13 @@ public:
 	inline CAArticulation::CAArticulationType articulationType() { return _articulationType; }
 	inline void setArticulationType( CAArticulation::CAArticulationType t ) { _articulationType = t; }
 
+	inline int fbmNumber() { return _fbmNumber; }
+	inline void setFBMNumber( int n ) { _fbmNumber = n; }
+	inline int fbmAccs() { return _fbmAccs; }
+	inline void setFBMAccs( int n ) { _fbmAccs= n; }
+	inline bool fbmAccsVisible() { return _fbmAccsVisible; }
+	inline void setFBMAccsVisible( int n ) { _fbmAccsVisible = n; }
+
 	inline CAFunctionMark::CAFunctionType fmFunction() { return _fmFunction; }
 	inline void setFMFunction( CAFunctionMark::CAFunctionType f ) { _fmFunction = f; }
 
@@ -259,6 +267,11 @@ private:
 	CAMark::CAMarkType _markType;                  // Type of the mark
 	CAArticulation::CAArticulationType _articulationType; // Type of the articulation mark
 	CASlur::CASlurStyle _slurStyle;                // Style of the slur (solid, dotted)
+
+	// Figured bass
+	int _fbmNumber;                                // Figured bass number
+	int _fbmAccs;                                  // Figured bass accidentals
+	bool _fbmAccsVisible;                          // Are accidentals visible
 
 	// Function Mark
 	CAFunctionMark::CAFunctionType _fmFunction;    // Name of the function

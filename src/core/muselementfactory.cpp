@@ -8,15 +8,16 @@
 */
 
 #include "core/muselementfactory.h"
-#include "core/functionmarkcontext.h"
-#include "core/sheet.h"
-#include "core/text.h"
-#include "core/bookmark.h"
-#include "core/dynamic.h"
-#include "core/instrumentchange.h"
-#include "core/articulation.h"
-#include "core/tuplet.h"
-#include "core/playable.h"
+#include "score/functionmarkcontext.h"
+#include "score/figuredbasscontext.h"
+#include "score/sheet.h"
+#include "score/text.h"
+#include "score/bookmark.h"
+#include "score/dynamic.h"
+#include "score/instrumentchange.h"
+#include "score/articulation.h"
+#include "score/tuplet.h"
+#include "score/playable.h"
 
 #include "canorus.h" // needed for CASettings
 #include "core/settings.h"
@@ -69,6 +70,10 @@ CAMusElementFactory::CAMusElementFactory() {
 	_eBarlineType = CABarline::Single;
 	_eSlurType = CASlur::TieType;
 	_slurStyle = CASlur::SlurSolid;
+
+	_fbmNumber = 6;
+	_fbmAccs   = 0;
+	_fbmAccsVisible = false;
 
 	_fmFunction = CAFunctionMark::T; // Name of the function
 	_fmChordArea = CAFunctionMark::Undefined; // Chord area of the function
@@ -141,9 +146,9 @@ bool CAMusElementFactory::configureClef( CAStaff *staff,
                                          CAMusElement *right )
 {
 	bool success = false;
-	if ( staff && staff->voiceCount() ) {
+	if ( staff && staff->voiceList().size() ) {
 		mpoMusElement = new CAClef( _eClef, staff, 0, _iClefOffset );
-		success = staff->voiceAt(0)->insert( right, mpoMusElement );
+		success = staff->voiceList()[0]->insert( right, mpoMusElement );
 		if (!success)
 			removeMusElem( true );
 	}
@@ -157,11 +162,11 @@ bool CAMusElementFactory::configureKeySignature( CAStaff *staff,
                                                  CAMusElement *right )
 {
 	bool success = false;
-	if ( staff && staff->voiceCount() ) {
+	if ( staff && staff->voiceList().size() ) {
 		mpoMusElement = new CAKeySignature( CADiatonicKey( _diatonicKeyNumberOfAccs, _diatonicKeyGender ),
 			                                staff,
 			                                0);
-		success = staff->voiceAt(0)->insert( right, mpoMusElement );
+		success = staff->voiceList()[0]->insert( right, mpoMusElement );
 		if (!success)
 			removeMusElem( true );
 	}
@@ -175,11 +180,11 @@ bool CAMusElementFactory::configureTimeSignature( CAStaff *staff,
                                                   CAMusElement *right )
 {
 	bool success = false;
-	if ( staff && staff->voiceCount() ) {
+	if ( staff && staff->voiceList().size() ) {
 		mpoMusElement = new CATimeSignature( _iTimeSigBeats, _iTimeSigBeat,
 			                             staff,
 			                             0);
-		success = staff->voiceAt(0)->insert( right, mpoMusElement );
+		success = staff->voiceList()[0]->insert( right, mpoMusElement );
 		if (!success)
 			removeMusElem( true );
 	}
@@ -193,11 +198,11 @@ bool CAMusElementFactory::configureBarline( CAStaff *staff,
                                             CAMusElement *right )
 {
 	bool success = false;
-	if ( staff && staff->voiceCount() ) {
+	if ( staff && staff->voiceList().size() ) {
 		mpoMusElement = new CABarline( _eBarlineType,
 			                             staff,
 			                             0);
-		success = staff->voiceAt(0)->insert( right, mpoMusElement );
+		success = staff->voiceList()[0]->insert( right, mpoMusElement );
 		if (!success)
 			removeMusElem( true );
 	}
@@ -245,9 +250,13 @@ bool CAMusElementFactory::configureNote( int pitch,
 			for (int i=0; i<voice->lyricsContextList().size(); i++) {
 				voice->lyricsContextList().at(i)->repositSyllables(); // adds an empty syllable or assigns the already placed at the end if it exists
 			}
-			for (int i=0; i<voice->staff()->sheet()->contextCount(); i++) {
-				if (voice->staff()->sheet()->contextAt(i)->contextType()==CAContext::FunctionMarkContext)
-					static_cast<CAFunctionMarkContext*>(voice->staff()->sheet()->contextAt(i))->repositFunctions();
+			for (int i=0; i<voice->staff()->sheet()->contextList().size(); i++) {
+				if (voice->staff()->sheet()->contextList()[i]->contextType()==CAContext::FunctionMarkContext) {
+					static_cast<CAFunctionMarkContext*>(voice->staff()->sheet()->contextList()[i])->repositFunctions();
+				} else
+				if (voice->staff()->sheet()->contextList()[i]->contextType()==CAContext::FiguredBassContext) {
+					static_cast<CAFiguredBassContext*>(voice->staff()->sheet()->contextList()[i])->repositFiguredBassMarks();
+				}
 			}
 		} else {
 			for (int i=0; i<voice->lyricsContextList().size(); i++) {
@@ -255,11 +264,16 @@ bool CAMusElementFactory::configureNote( int pitch,
 					mpoMusElement->timeStart(), mpoMusElement->timeLength()
 				);
 			}
-			for (int i=0; i<voice->staff()->sheet()->contextCount(); i++) {
-				if (voice->staff()->sheet()->contextAt(i)->contextType()==CAContext::FunctionMarkContext)
-					static_cast<CAFunctionMarkContext*>(voice->staff()->sheet()->contextAt(i))->addEmptyFunction(
+			for (int i=0; i<voice->staff()->sheet()->contextList().size(); i++) {
+				if (voice->staff()->sheet()->contextList()[i]->contextType()==CAContext::FunctionMarkContext) {
+					static_cast<CAFunctionMarkContext*>(voice->staff()->sheet()->contextList()[i])->addEmptyFunction(
 						mpoMusElement->timeStart(), mpoMusElement->timeLength()
 					);
+				} else if (voice->staff()->sheet()->contextList()[i]->contextType()==CAContext::FiguredBassContext) {
+					static_cast<CAFiguredBassContext*>(voice->staff()->sheet()->contextList()[i])->addEmptyFiguredBassMark(
+						mpoMusElement->timeStart(), mpoMusElement->timeLength()
+					);
+				}
 			}
 		}
 	}
@@ -443,6 +457,24 @@ bool CAMusElementFactory::configureRest( CAVoice *voice, CAMusElement *right ) {
 }
 
 /*!
+	Configures a new figured bass mark with \a timeStart and \a timeLength in context \a fbc.
+*/
+bool CAMusElementFactory::configureFiguredBassNumber( CAFiguredBassMark *fbm ) {
+	if ( _fbmNumber==0 && (!_fbmAccsVisible) || (!fbm) ) {
+		return false;
+	}
+
+	if (_fbmAccsVisible) {
+		fbm->addNumber( _fbmNumber, _fbmAccs );
+	} else {
+		fbm->addNumber( _fbmNumber );
+	}
+	mpoMusElement = fbm;
+
+	return true;
+}
+
+/*!
 	Configures a new function mark with \a timeStart and \a timeLength in context \a fmc.
 */
 bool CAMusElementFactory::configureFunctionMark( CAFunctionMarkContext *fmc, int timeStart, int timeLength ) {
@@ -467,26 +499,6 @@ bool CAMusElementFactory::configureFunctionMark( CAFunctionMarkContext *fmc, int
  */
 bool CAMusElementFactory::configureTuplet( QList<CAPlayable*> noteList ) {
 
-}
-
-/*!
-	Places a barline in front of the element, if needed.
-
-	The function finds the last barline and places a new one, if the last bar is full.
- */
-void CAMusElementFactory::placeAutoBar( CAPlayable* elt ) {
-	if ( !elt )
-		return;
-	CABarline *b = static_cast<CABarline*>(elt->voice()->previousByType( CAMusElement::Barline, elt ));
-	CATimeSignature *t = static_cast<CATimeSignature*>(elt->voice()->previousByType( CAMusElement::TimeSignature, elt ));
-
-	if (t) {
-		int barLength = CAPlayableLength::playableLengthToTimeLength( CAPlayableLength( static_cast<CAPlayableLength::CAMusicLength>(t->beat()) ) ) * t->beats();
-		if ( (b?(b->timeStart()):0) + barLength <= elt->timeStart() ) {
-			elt->voice()->insert( elt, new CABarline( CABarline::Single, elt->staff(), elt->timeStart() ) );
-			elt->staff()->synchronizeVoices();
-		}
-	}
 }
 
 /*!

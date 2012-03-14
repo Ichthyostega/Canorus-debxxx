@@ -11,15 +11,15 @@
 #include "interface/keybdinput.h"
 #include "interface/mididevice.h"
 #include "core/muselementfactory.h"
-#include "core/interval.h"
-#include "drawable/drawablestaff.h"
+#include "score/interval.h"
+#include "layout/drawablestaff.h"
 #include "widgets/menutoolbutton.h"
 #include "canorus.h"
 #include "core/settings.h"
 #include "core/undo.h"
 
 class CAMenuToolButton;
- 
+
 
 /*!
 	\class CAKeybdInput
@@ -37,7 +37,7 @@ class CAMenuToolButton;
 
 	todo: User selectable (to be implemented) midi pitches can be set to be interpreted as rest input,
 	punctuation and so on.  Inserting at the currently selected note.
-	
+
 */
 
 CAKeybdInput::CAKeybdInput (CAMainWin *mw) {
@@ -68,27 +68,28 @@ void CAKeybdInput::onMidiInEvent( QVector<unsigned char> m ) {
 	event = m[0];
 	velocity = m[2];
 	if ( event == CAMidiDevice::Midi_Note_On && velocity !=0 ) {
-		CADiatonicPitch x = CAMidiDevice::midiPitchToDiatonicPitch( m[1] );
-		midiInEventToScore( _mw->currentScoreViewPort(), m );
+		CADiatonicPitch x = CADiatonicPitch::diatonicPitchFromMidiPitch( m[1] );
+		midiInEventToScore( _mw->currentScoreView(), m );
 	}
 }
- 
+
 /*!
 	This is the entry point the midi input device. All note on events are passed over here.
 */
-void CAKeybdInput::midiInEventToScore(CAScoreViewPort *v, QVector<unsigned char> m) {
+void CAKeybdInput::midiInEventToScore(CAScoreView *v, QVector<unsigned char> m) {
 
 	int i;
-	CADiatonicPitch p = CAMidiDevice::midiPitchToDiatonicPitch( m[1] );
+	CADiatonicPitch p = CADiatonicPitch::diatonicPitchFromMidiPitch( m[1] );
 	CADiatonicPitch nonenharmonicPitch;
 
 	CAVoice *voice = _mw->currentVoice();
 	if (voice) {
- 	
-		int cpitch = m[1];
 
-		// will publish this only when it's configurable. Habe only a four octave keyboard ...
+		int cpitch = m[1];
 /*
+
+		// will publish this only when it's configurable. Have only a four octave keyboard ...
+
 		CAPlayableLength plength = CAPlayableLength::Undefined;
 		switch (cpitch) {
 		case 39:	plength = CAPlayableLength::Whole;		break;
@@ -106,6 +107,7 @@ void CAKeybdInput::midiInEventToScore(CAScoreViewPort *v, QVector<unsigned char>
 			v->repaint();
 			return;
 		}
+
 */
 
 		CADrawableContext *drawableContext = v->currentContext();
@@ -129,14 +131,17 @@ void CAKeybdInput::midiInEventToScore(CAScoreViewPort *v, QVector<unsigned char>
 					note = new CANote( nonenharmonicPitch, _mw->musElementFactory()->playableLength(), voice, -1 );
 		}
 
-		CACanorus::undo()->createUndoCommand( _mw->document(), QObject::tr("insert midi note", "undo") );
 
 		// if notes come in sufficiently close together we make a chord of them
 		bool appendToChord = _midiInChordTimer.isActive();
 
+		// we create undo only for chords as a whole
+		if (!appendToChord)
+			CACanorus::undo()->createUndoCommand( _mw->document(), QObject::tr("insert midi note", "undo") );
+
 		// If we are still in the processing of a tuplet, check if it's still there.
 		// Possibly editing on the GUI could have moved it around or away, and no crash please.
-		if ( _tupPla && ( !voice->contains(_tupPla) || _tupPla->tuplet() != _tup )) _tupPla = 0;
+		if ( _tupPla && ( !voice->musElementList().contains(_tupPla) || _tupPla->tuplet() != _tup )) _tupPla = 0;
 
 		// Where to put the note? When in a tuplet, do a chord in the tuplet or the nex not in the tuplet.
 		if ( _tupPla &&!appendToChord ) {
@@ -195,12 +200,12 @@ void CAKeybdInput::midiInEventToScore(CAScoreViewPort *v, QVector<unsigned char>
 					CANote *prevNote = 0;
 					_noteLayout.clear();
 					for (i=0;i<lll.size();i++) {
-						
+
 						note = new CANote( nonenharmonicPitch, lll[i], voice, -1 );
 						voice->append( note, appendToChord );
 						_noteLayout.append( voice->lastMusElement());
 						std::cout<<" -- "<<lll[i].musicLength()<<"."<<lll[i].dotted();
-			  			_mw->musElementFactory()->placeAutoBar( note );
+			  			CAStaff::placeAutoBar( note );
 						if (i>0) {
 							_mw->musElementFactory()->configureSlur( staff, prevNote, note );
 						}
@@ -224,13 +229,15 @@ void CAKeybdInput::midiInEventToScore(CAScoreViewPort *v, QVector<unsigned char>
 				}
 			}
 		}
+		// TODO only compile test, note yet used
+		CACanorus::settings()->splitAtQuarterBoundaries();
 
 		// We make shure not to try to place a barline inside a chord or inside a tuplet
 		if ( CACanorus::settings()->autoBar() && !appendToChord && (!_tupPla || _tupPla->isFirstInTuplet())) {
 			if (note)
-			  	_mw->musElementFactory()->placeAutoBar( note );
+			  	CAStaff::placeAutoBar( note );
 			else
-			  	_mw->musElementFactory()->placeAutoBar( rest );
+			  	CAStaff::placeAutoBar( rest );
 		}
 
 		voice->synchronizeMusElements();	// probably not needed
@@ -244,7 +251,7 @@ void CAKeybdInput::midiInEventToScore(CAScoreViewPort *v, QVector<unsigned char>
 		QList<CAPlayable*> lp = voice->getChord(voice->lastMusElement()->timeStart());
 		QList<CAMusElement*> lme;
 		for (int i=0;i<lp.size();i++) lme << static_cast<CAMusElement*>(lp[i]);
-		_mw->currentScoreViewPort()->addToSelection(lme);
+		_mw->currentScoreView()->addToSelection(lme);
 
 		// When I looking the last appended note is note showing up. Where goes it missing?
 		// Still without a clue. georg

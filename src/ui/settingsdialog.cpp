@@ -2,7 +2,7 @@
 	Copyright (c) 2006-2007, Matevž Jekovec, Canorus development team
 	All Rights Reserved. See AUTHORS for a complete list of authors.
 
-	Licensed under the GNU GENERAL PUBLIC LICENSE. See COPYING for details.
+	Licensed punder the GNU GENERAL PUBLIC LICENSE. See COPYING for details.
 */
 
 #include <QSettings>
@@ -13,12 +13,13 @@
 #include "canorus.h"
 #include "ui/settingsdialog.h"
 #include "interface/mididevice.h"
+#include "widgets/actionseditor.h"
 #include "core/settings.h"
-#include "core/sheet.h"         // needed for preview sheet
-#include "core/staff.h"         // needed for preview sheet
-#include "core/voice.h"         // needed for preview sheet
-#include "core/clef.h"          // needed for preview sheet
-#include "core/timesignature.h" // needed for preview sheet
+#include "score/sheet.h"         // needed for preview sheet
+#include "score/staff.h"         // needed for preview sheet
+#include "score/voice.h"         // needed for preview sheet
+#include "score/clef.h"          // needed for preview sheet
+#include "score/timesignature.h" // needed for preview sheet
 
 /*!
 	\class CASettingsDialog
@@ -33,6 +34,7 @@ CASettingsDialog::CASettingsDialog( CASettingsPage currentPage, QWidget *parent 
 	setupUi( this );
 
 	buildPreviewSheet();
+	buildActionsEditorPage();
 	setupPages( currentPage );
 
 
@@ -47,11 +49,13 @@ void CASettingsDialog::setupPages( CASettingsPage currentPage ) {
 	// Editor Page
 	uiFinaleLyricsCheckBox->setChecked( CACanorus::settings()->finaleLyricsBehaviour() );
 	uiShadowNotesInOtherStaffs->setChecked( CACanorus::settings()->shadowNotesInOtherStaffs() );
-	uiAntiAliasing->setChecked( CACanorus::settings()->antiAliasing() );
 	uiPlayInsertedNotes->setChecked( CACanorus::settings()->playInsertedNotes() );
 	uiAutoBar->setChecked( CACanorus::settings()->autoBar() );
+	uiSplitAtQuarterBoundaries->setChecked( CACanorus::settings()->splitAtQuarterBoundaries() );
 
 	// Appearance Page
+	uiAntiAliasing->setChecked( CACanorus::settings()->antiAliasing() );
+	uiAnimatedScroll->setChecked( CACanorus::settings()->animatedScroll() );
 	uiForegroundColor->setPalette( QPalette( CACanorus::settings()->foregroundColor() ) );
 	uiBackgroundColor->setPalette( QPalette( CACanorus::settings()->backgroundColor() ) );
 	uiSelectionColor->setPalette( QPalette( CACanorus::settings()->selectionColor() ) );
@@ -59,14 +63,17 @@ void CASettingsDialog::setupPages( CASettingsPage currentPage ) {
 	uiSelectedContextColor->setPalette( QPalette( CACanorus::settings()->selectedContextColor() ) );
 	uiHiddenElementsColor->setPalette( QPalette( CACanorus::settings()->hiddenElementsColor() ) );
 	uiDisabledElementsColor->setPalette( QPalette( CACanorus::settings()->disabledElementsColor() ) );
-	uiPreviewScoreViewPort->setSheet( _previewSheet );
-	uiPreviewScoreViewPort->setScrollBarVisible( CAScoreViewPort::ScrollBarAlwaysHidden );
-	uiPreviewScoreViewPort->rebuild();
-	uiPreviewScoreViewPort->setZoom(0.6, 0, 0, false, false);
-	uiPreviewScoreViewPort->setCurrentContext( uiPreviewScoreViewPort->findCElement( _previewSheet->staffAt(0) ) );
-	uiPreviewScoreViewPort->addSelectionRegion( QRect(50, 40, 70, 90) );
-	uiPreviewScoreViewPort->addToSelection( _previewSheet->staffAt(0)->voiceAt(0)->musElementAt(1) );
-	uiPreviewScoreViewPort->repaint();
+	uiPreviewScoreView->setSheet( _previewSheet );
+	uiPreviewScoreView->setGrabTabKey( false );
+	uiPreviewScoreView->setScrollBarVisible( CAScoreView::ScrollBarAlwaysHidden );
+	uiPreviewScoreView->rebuild();
+	uiPreviewScoreView->setZoom(0.6, 0, 0, false, false);
+	uiPreviewScoreView->setCurrentContext( uiPreviewScoreView->findCElement( _previewSheet->staffList()[0] ) );
+	uiPreviewScoreView->addSelectionRegion( QRect(50, 40, 70, 90) );
+	uiPreviewScoreView->addToSelection( _previewSheet->staffList()[0]->voiceList()[0]->musElementList()[1] );
+	uiPreviewScoreView->repaint();
+
+	// Commands Settings Page
 
 	// Loading Saving Page
 	uiDocumentsDirectory->setText( CACanorus::settings()->documentsDirectory().absolutePath() );
@@ -134,9 +141,9 @@ void CASettingsDialog::applySettings() {
 	// Editor Page
 	CACanorus::settings()->setFinaleLyricsBehaviour( uiFinaleLyricsCheckBox->isChecked() );
 	CACanorus::settings()->setShadowNotesInOtherStaffs( uiShadowNotesInOtherStaffs->isChecked() );
-	CACanorus::settings()->setAntiAliasing( uiAntiAliasing->isChecked() );
 	CACanorus::settings()->setPlayInsertedNotes( uiPlayInsertedNotes->isChecked() );
 	CACanorus::settings()->setAutoBar( uiAutoBar->isChecked() );
+	CACanorus::settings()->setSplitAtQuarterBoundaries( uiSplitAtQuarterBoundaries->isChecked() );
 
 	// Saving/Loading Page
 	CACanorus::settings()->setDocumentsDirectory( uiDocumentsDirectory->text() );
@@ -150,6 +157,8 @@ void CASettingsDialog::applySettings() {
 	CACanorus::autoRecovery()->updateTimer();
 
 	// Appearance Page
+	CACanorus::settings()->setAntiAliasing( uiAntiAliasing->isChecked() );
+	CACanorus::settings()->setAnimatedScroll( uiAnimatedScroll->isChecked() );
 	CACanorus::settings()->setBackgroundColor( uiBackgroundColor->palette().color(QPalette::Window) );
 	CACanorus::settings()->setForegroundColor( uiForegroundColor->palette().color(QPalette::Window) );
 	CACanorus::settings()->setSelectionColor( uiSelectionColor->palette().color(QPalette::Window) );
@@ -179,11 +188,24 @@ void CASettingsDialog::applySettings() {
 	CACanorus::settings()->writeSettings();
 }
 
+void CASettingsDialog::buildActionsEditorPage()
+{
+	int i;
+	QWidget oSingleActions; // all actions added here
+	const QList<QAction *> &roSAList = CACanorus::settings()->getActionList();
+	_commandsEditor = new CAActionsEditor( 0 );
+	// Read all elements from single action list (API requirement)
+	for(i=0; i< roSAList.size(); ++i)
+		oSingleActions.addAction( roSAList[i] );
+	// Add all command actions (loading happens earlier in Canorus)
+	_commandsEditor->addActions( &oSingleActions );
+}
+
 void CASettingsDialog::buildPreviewSheet() {
 	_previewSheet = new CASheet( "", 0 );
 	_previewSheet->addStaff();
-	_previewSheet->staffAt(0)->voiceAt(0)->append( new CAClef( CAClef::Treble, _previewSheet->staffAt(0), 0 ) );
-	_previewSheet->staffAt(0)->voiceAt(0)->append( new CATimeSignature( 2, 2, _previewSheet->staffAt(0), 0 ) );
+	_previewSheet->staffList()[0]->voiceList()[0]->append( new CAClef( CAClef::Treble, _previewSheet->staffList()[0], 0 ) );
+	_previewSheet->staffList()[0]->voiceList()[0]->append( new CATimeSignature( 2, 2, _previewSheet->staffList()[0], 0 ) );
 	_previewSheet->addStaff();
 }
 
@@ -201,105 +223,105 @@ void CASettingsDialog::on_uiBackgroundColor_clicked(bool) {
 	QColor c = QColor::fromRgba(QColorDialog::getRgba( uiBackgroundColor->palette().color(QPalette::Window).rgba(), 0, this ));
 	if (c.isValid()) {
 		uiBackgroundColor->setPalette( QPalette(c) );
-		uiPreviewScoreViewPort->setBackgroundColor(c);
-		uiPreviewScoreViewPort->repaint();
+		uiPreviewScoreView->setBackgroundColor(c);
+		uiPreviewScoreView->repaint();
 	}
 }
 
 void CASettingsDialog::on_uiBackgroundRevert_clicked(bool) {
 	uiBackgroundColor->setPalette( QPalette(CASettings::DEFAULT_BACKGROUND_COLOR) );
-	uiPreviewScoreViewPort->setBackgroundColor(CASettings::DEFAULT_BACKGROUND_COLOR);
-	uiPreviewScoreViewPort->repaint();
+	uiPreviewScoreView->setBackgroundColor(CASettings::DEFAULT_BACKGROUND_COLOR);
+	uiPreviewScoreView->repaint();
 }
 
 void CASettingsDialog::on_uiForegroundColor_clicked(bool) {
 	QColor c = QColor::fromRgba(QColorDialog::getRgba( uiForegroundColor->palette().color(QPalette::Window).rgba(), 0, this ));
 	if (c.isValid()) {
 		uiForegroundColor->setPalette( QPalette(c) );
-		uiPreviewScoreViewPort->setForegroundColor(c);
-		uiPreviewScoreViewPort->repaint();
+		uiPreviewScoreView->setForegroundColor(c);
+		uiPreviewScoreView->repaint();
 	}
 }
 
 void CASettingsDialog::on_uiForegroundRevert_clicked(bool) {
 	uiForegroundColor->setPalette( QPalette(CASettings::DEFAULT_FOREGROUND_COLOR) );
-	uiPreviewScoreViewPort->setForegroundColor(CASettings::DEFAULT_FOREGROUND_COLOR);
-	uiPreviewScoreViewPort->repaint();
+	uiPreviewScoreView->setForegroundColor(CASettings::DEFAULT_FOREGROUND_COLOR);
+	uiPreviewScoreView->repaint();
 }
 
 void CASettingsDialog::on_uiSelectionColor_clicked(bool) {
 	QColor c = QColor::fromRgba(QColorDialog::getRgba( uiSelectionColor->palette().color(QPalette::Window).rgba(), 0, this ));
 	if (c.isValid()) {
 		uiSelectionColor->setPalette( QPalette(c) );
-		uiPreviewScoreViewPort->setSelectionColor(c);
-		uiPreviewScoreViewPort->repaint();
+		uiPreviewScoreView->setSelectionColor(c);
+		uiPreviewScoreView->repaint();
 	}
 }
 
 void CASettingsDialog::on_uiSelectionRevert_clicked(bool) {
 	uiSelectionColor->setPalette( QPalette(CASettings::DEFAULT_SELECTION_COLOR) );
-	uiPreviewScoreViewPort->setSelectionColor(CASettings::DEFAULT_SELECTION_COLOR);
-	uiPreviewScoreViewPort->repaint();
+	uiPreviewScoreView->setSelectionColor(CASettings::DEFAULT_SELECTION_COLOR);
+	uiPreviewScoreView->repaint();
 }
 
 void CASettingsDialog::on_uiSelectionAreaColor_clicked(bool) {
 	QColor c = QColor::fromRgba(QColorDialog::getRgba( uiSelectionAreaColor->palette().color(QPalette::Window).rgba(), 0, this ));
 	if (c.isValid()) {
 		uiSelectionAreaColor->setPalette( QPalette(c) );
-		uiPreviewScoreViewPort->setSelectionAreaColor(c);
-		uiPreviewScoreViewPort->repaint();
+		uiPreviewScoreView->setSelectionAreaColor(c);
+		uiPreviewScoreView->repaint();
 	}
 }
 
 void CASettingsDialog::on_uiSelectionAreaRevert_clicked(bool) {
 	uiSelectionAreaColor->setPalette( QPalette(CASettings::DEFAULT_SELECTION_AREA_COLOR) );
-	uiPreviewScoreViewPort->setSelectionAreaColor(CASettings::DEFAULT_SELECTION_AREA_COLOR);
-	uiPreviewScoreViewPort->repaint();
+	uiPreviewScoreView->setSelectionAreaColor(CASettings::DEFAULT_SELECTION_AREA_COLOR);
+	uiPreviewScoreView->repaint();
 }
 
 void CASettingsDialog::on_uiSelectedContextColor_clicked(bool) {
 	QColor c = QColor::fromRgba(QColorDialog::getRgba( uiSelectedContextColor->palette().color(QPalette::Window).rgba(), 0, this ));
 	if (c.isValid()) {
 		uiSelectedContextColor->setPalette( QPalette(c) );
-		uiPreviewScoreViewPort->setSelectedContextColor(c);
-		uiPreviewScoreViewPort->repaint();
+		uiPreviewScoreView->setSelectedContextColor(c);
+		uiPreviewScoreView->repaint();
 	}
 }
 
 void CASettingsDialog::on_uiSelectedContextRevert_clicked(bool) {
 	uiSelectedContextColor->setPalette( QPalette(CASettings::DEFAULT_SELECTED_CONTEXT_COLOR) );
-	uiPreviewScoreViewPort->setSelectedContextColor(CASettings::DEFAULT_SELECTED_CONTEXT_COLOR);
-	uiPreviewScoreViewPort->repaint();
+	uiPreviewScoreView->setSelectedContextColor(CASettings::DEFAULT_SELECTED_CONTEXT_COLOR);
+	uiPreviewScoreView->repaint();
 }
 
 void CASettingsDialog::on_uiHiddenElementsColor_clicked(bool) {
 	QColor c = QColor::fromRgba(QColorDialog::getRgba( uiHiddenElementsColor->palette().color(QPalette::Window).rgba(), 0, this ));
 	if (c.isValid()) {
 		uiHiddenElementsColor->setPalette( QPalette(c) );
-		uiPreviewScoreViewPort->setHiddenElementsColor(c);
-		uiPreviewScoreViewPort->repaint();
+		uiPreviewScoreView->setHiddenElementsColor(c);
+		uiPreviewScoreView->repaint();
 	}
 }
 
 void CASettingsDialog::on_uiHiddenElementsRevert_clicked(bool) {
 	uiHiddenElementsColor->setPalette( QPalette(CASettings::DEFAULT_HIDDEN_ELEMENTS_COLOR) );
-	uiPreviewScoreViewPort->setHiddenElementsColor(CASettings::DEFAULT_HIDDEN_ELEMENTS_COLOR);
-	uiPreviewScoreViewPort->repaint();
+	uiPreviewScoreView->setHiddenElementsColor(CASettings::DEFAULT_HIDDEN_ELEMENTS_COLOR);
+	uiPreviewScoreView->repaint();
 }
 
 void CASettingsDialog::on_uiDisabledElementsColor_clicked(bool) {
 	QColor c = QColor::fromRgba(QColorDialog::getRgba( uiDisabledElementsColor->palette().color(QPalette::Window).rgba(), 0, this ));
 	if (c.isValid()) {
 		uiDisabledElementsColor->setPalette( QPalette(c) );
-		uiPreviewScoreViewPort->setDisabledElementsColor(c);
-		uiPreviewScoreViewPort->repaint();
+		uiPreviewScoreView->setDisabledElementsColor(c);
+		uiPreviewScoreView->repaint();
 	}
 }
 
 void CASettingsDialog::on_uiDisabledElementsRevert_clicked(bool) {
 	uiDisabledElementsColor->setPalette( QPalette(CASettings::DEFAULT_DISABLED_ELEMENTS_COLOR) );
-	uiPreviewScoreViewPort->setDisabledElementsColor(CASettings::DEFAULT_DISABLED_ELEMENTS_COLOR);
-	uiPreviewScoreViewPort->repaint();
+	uiPreviewScoreView->setDisabledElementsColor(CASettings::DEFAULT_DISABLED_ELEMENTS_COLOR);
+	uiPreviewScoreView->repaint();
 }
 
 void CASettingsDialog::on_uiTypesetterBrowse_clicked(bool) {

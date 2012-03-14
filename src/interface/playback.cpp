@@ -13,16 +13,18 @@
 
 #include "interface/playback.h"
 #include "interface/mididevice.h"
-#include "core/sheet.h"
-#include "core/staff.h"
-#include "core/context.h"
-#include "core/barline.h"
-#include "core/note.h"
-#include "core/voice.h"
-#include "core/mark.h"
-#include "core/dynamic.h"
-#include "core/instrumentchange.h"
-#include "core/tempo.h"
+#include "score/sheet.h"
+#include "score/staff.h"
+#include "score/context.h"
+#include "score/barline.h"
+#include "score/note.h"
+#include "score/voice.h"
+#include "score/mark.h"
+#include "score/dynamic.h"
+#include "score/instrumentchange.h"
+#include "score/tempo.h"
+#include "score/timesignature.h"
+#include "score/keysignature.h"
 
 /*!
 	\class CAPlayback
@@ -37,6 +39,8 @@
 	3) Optionally configure playback (setInitTimeStart() to start playback from the specific time. Default 0).
 	4) Call myPlaybackObject->run(). This will start playing in a new thread.
 	5) Call myPlaybackObject->stop() to stop the playback. Playback also stops automatically when finished.
+	6) Playback is also used for creating the events for midi file export. Therefore the music length time _curTime
+	   is also transferred as a paramter in send() and sendMetaEvent() to export the music lengths independent of tempo.
 
 	The playbackFinished() signal is emitted once playback has finished or stopped.
 
@@ -44,35 +48,44 @@
 */
 
 CAPlayback::CAPlayback( CASheet *s, CAMidiDevice *m ) {
-	setSheet( s );
-	setMidiDevice( m );
-	_stop = false;
-	setInitTimeStart( 0 );
-	setStopLock(false);
-	connect(this, SIGNAL(finished()), SLOT(stopNow()));
-	_playSelectionOnly = false;
+	initPlayback();
 
-	_repeating=0;
-	_lastRepeatOpenIdx=0;
-	_curTime=0;
-	_streamIdx=0;
+	_sheet = s;
+	_midiDevice = m;
+	_playSelectionOnly = false;
 }
 
 /*!
 	Plays the list of music elements simultaniously.
 	It only takes notes into account.
 */
-CAPlayback::CAPlayback( CAMidiDevice *m, int port ) {
-	setMidiDevice( m );
-	_stop = false;
-	setStopLock(false);
-	_playSelectionOnly = true;
-	connect(this, SIGNAL(finished()), SLOT(stopNow()));
+CAPlayback::CAPlayback( CAMidiDevice *m ) {
+	initPlayback();
 
+	_midiDevice = m;
+	_playSelectionOnly = true;
+}
+
+/*!
+	Initializes all basic playback values to zero and connects the signals.
+	Usually called only once from the constructor.
+*/
+void CAPlayback::initPlayback() {
 	_repeating=0;
 	_lastRepeatOpenIdx=0;
 	_curTime=0;
 	_streamIdx=0;
+	_stop = false;
+	_stopLock = false;
+
+	// override this settings in actual constructor
+	_sheet = 0;
+	_midiDevice = 0;
+	_playSelectionOnly = false;
+	_initTimeStart = 0;
+	_sleepFactor = 1.0; // set by tempo to determine the miliseconds for sleep
+
+	connect(this, SIGNAL(finished()), SLOT(stopNow()));
 }
 
 /*!
@@ -84,14 +97,8 @@ CAPlayback::~CAPlayback() {
 		wait();
 	}
 
-	if (_repeating)
-		delete [] _repeating;
-
 	if (_lastRepeatOpenIdx)
 		delete [] _lastRepeatOpenIdx;
-
-	if (_curTime)
-		delete [] _curTime;
 
 	if (_streamIdx)
 		delete [] _streamIdx;
@@ -121,49 +128,63 @@ void CAPlayback::run() {
 	QVector<unsigned char> message;	// midi 3-byte message sent to midi device
 
 	// initializes all the streams, indices, repeat barlines etc.
-	if ( !streamCount() )
+	if ( !streamList().size() ) {
 		initStreams( sheet() );
+	}
 
-	if ( !streamCount() )
+	if ( !streamList().size() )
 		stop();
 	else
 		setStop(false);
 
 	int minLength = -1;
-	float sleepFactor = 1.0;  // set by tempo to determine the miliseconds for sleep
 	int mSeconds=0;           // actual song time, used when creating a midi file
 	while (!_stop || _curPlaying.size()) {	// at stop true: enter to switch all notes off
 		for (int i=0; i<_curPlaying.size(); i++) {
-			if ( _stop || _curPlaying[i]->timeEnd() <= curTime(i) ) {
+			if ( _stop || _curPlaying[i]->timeEnd() <= _curTime ) {
 				// note off
 				CANote *note = dynamic_cast<CANote*>(_curPlaying[i]);
 				if (note) {
 					message << (128 + note->voice()->midiChannel()); // note off
-					message << ( CAMidiDevice::diatonicPitchToMidiPitch(note->diatonicPitch()) );
+					message << ( CADiatonicPitch::diatonicPitchToMidiPitch(note->diatonicPitch()) );
 					message << (127);
 					if ((note->musElementType()!=CAMusElement::Rest ) &&		// first because rest has no tie
 							!(note->tieStart() && note->tieStart()->noteEnd()) )
-						midiDevice()->send(message, mSeconds);
+						midiDevice()->send(message, _curTime);
 					message.clear();
 				}
 				_curPlaying.removeAt(i--);
 			}
 		}
 
-		for (int i=0; i<streamCount(); i++) {
+		for (int i=0; i<streamList().size(); i++) {
 			loopUntilPlayable(i);
 		}
 
 		if (_stop) continue;	// no notes on anymore
 
 		minLength = -1;
-		for (int i=0; i<streamCount(); i++) {
-			while ( streamAt(i).size() > streamIdx(i) &&
-			        streamAt(i).at(streamIdx(i))->timeStart() == curTime(i)
-			      ) {
-				// note on
-				CANote *note = dynamic_cast<CANote*>(streamAt(i).at(streamIdx(i)));
+		for (int i=0; i<streamList().size(); i++) {
 
+			while ( streamAt(i).size() > streamIdx(i) &&
+			        streamAt(i).at(streamIdx(i))->timeStart() == _curTime
+			      ) {
+
+				// check if a rest carries a tempo mark
+				CAMusElement *me = streamAt(i).at(streamIdx(i));
+				if (me->musElementType()==CAMusElement::Rest) {
+				    for (int j=0; j<me->markList().size(); j++) {
+				    	if ( me->markList()[j]->markType()==CAMark::Tempo ) {
+				    		CATempo *tempo = static_cast<CATempo*>(me->markList()[j]);
+		    				midiDevice()->sendMetaEvent(_curTime, CAMidiDevice::Meta_Tempo, tempo->bpm(), 0, 0);
+						}
+					}
+
+				}
+
+				// note on
+
+				CANote *note = dynamic_cast<CANote*>(streamAt(i).at(streamIdx(i)));
 				if (note) {
 				    QVector<unsigned char> message;
 
@@ -173,28 +194,27 @@ void CAPlayback::run() {
 				    		message << (176 + note->voice()->midiChannel()); // set volume
 				    		message << (CAMidiDevice::Midi_Ctl_Volume /* 7 */ );
 				    		message << qRound(127 * static_cast<CADynamic*>(note->markList()[j])->volume()/100.0);
-				    		midiDevice()->send(message, mSeconds);
+				    		midiDevice()->send(message, _curTime);
 				    		message.clear();
 				    	} else
 				    	if ( note->markList()[j]->markType()==CAMark::InstrumentChange ) {
 							message << (192 + note->voice()->midiChannel()); // change program
 							message << static_cast<unsigned char>(static_cast<CAInstrumentChange*>(note->markList()[j])->instrument());
-							midiDevice()->send(message, mSeconds);
+							midiDevice()->send(message, _curTime);
 							message.clear();
 				    	} else
 				    	if ( note->markList()[j]->markType()==CAMark::Tempo ) {
-				    		sleepFactor = 60000.0 /
-				    		( CAPlayableLength::playableLengthToTimeLength( static_cast<CATempo*>(note->markList()[j])->beat() )
-				    		  * static_cast<CATempo*>(note->markList()[j])->bpm()
-				    		);
+				    		updateSleepFactor( static_cast<CATempo*>(note->markList()[j]) );
+				    		CATempo *tempo = static_cast<CATempo*>(note->markList()[j]);
+		    				midiDevice()->sendMetaEvent(_curTime, CAMidiDevice::Meta_Tempo, tempo->bpm(), 0, 0);
 				    	}
 				    }
 
 					message << (144 + note->voice()->midiChannel()); // note on
-					message << ( CAMidiDevice::diatonicPitchToMidiPitch(note->diatonicPitch()) );
+					message << ( CADiatonicPitch::diatonicPitchToMidiPitch(note->diatonicPitch()) );
 					message << (127);
 					if ( !note->tieEnd() )
-						midiDevice()->send(message, mSeconds);
+						midiDevice()->send(message, _curTime);
 					message.clear();
 				}
 
@@ -203,7 +223,7 @@ void CAPlayback::run() {
 				}
 
 				int delta;
-				if ( (delta = (streamAt(i).at(streamIdx(i))->timeEnd() - _curTime[i])) < minLength
+				if ( (delta = (streamAt(i).at(streamIdx(i))->timeEnd() - _curTime)) < minLength
 				    ||
 				     minLength==-1
 				   )
@@ -215,10 +235,9 @@ void CAPlayback::run() {
 			// calculate the pause needed by msleep
 			// last playables in the stream - _curPlaying is otherwise always set!
 			// pre-last pass, set minLength to their timeLengths to stop the notes
-			// \todo curtime() below doesn't work yet for asynchrone staffs (not-aligned repeat bars)
 			for (int j=0; j<_curPlaying.size(); j++) {
-				if ((_curPlaying[j]->timeEnd() - curTime(i)) < minLength || minLength==-1)
-					minLength =_curPlaying[j]->timeEnd() - curTime(i);
+				if ((_curPlaying[j]->timeEnd() - _curTime) < minLength || minLength==-1)
+					minLength =_curPlaying[j]->timeEnd() - _curTime;
 			}
 		}
 
@@ -228,18 +247,28 @@ void CAPlayback::run() {
 		}
 
 		if (minLength!=-1) {
-			mSeconds += qRound(minLength*sleepFactor);
+			mSeconds += qRound(minLength*_sleepFactor);
 
 			if ( midiDevice()->isRealTime() )
-				msleep( qRound(minLength*sleepFactor) );
+				msleep( qRound(minLength*_sleepFactor) );
 
-			for (int i=0; i<streamCount(); i++)
-				curTime(i) += minLength;
+			_curTime += minLength;
 		}
 	}
 
 	_curPlaying.clear();
 	stop();
+}
+
+/*!
+	Calculates the sleep factor for the given tempo \a t.
+	If \a t is null, it does nothing.
+ */
+void CAPlayback::updateSleepFactor( CATempo *t ) {
+	if (t) {
+		_sleepFactor = 60000.0 /
+		              ( CAPlayableLength::playableLengthToTimeLength( t->beat() ) * t->bpm() );
+	}
 }
 
 /*!
@@ -268,19 +297,19 @@ void CAPlayback::playSelectionImpl() {
 			// Note ON
 			message << (192 + note->voice()->midiChannel()); // change program
 			message << (note->voice()->midiProgram());
-			midiDevice()->send(message, 0);
+			midiDevice()->send(message, _curTime);
 			message.clear();
 
 			message << (176 + note->voice()->midiChannel()); // set volume
 			message << (7);
 			message << (100);
-			midiDevice()->send(message, 0);
+			midiDevice()->send(message, _curTime);
 			message.clear();
 
 			message << (144 + note->voice()->midiChannel()); // note on
-			message << ( CAMidiDevice::diatonicPitchToMidiPitch(note->diatonicPitch()) );
+			message << ( CADiatonicPitch::diatonicPitchToMidiPitch(note->diatonicPitch()) );
 			message << (127);
-			midiDevice()->send(message, 0);
+			midiDevice()->send(message, _curTime);
 			message.clear();
 
 			_curPlaying << note;
@@ -294,9 +323,9 @@ void CAPlayback::playSelectionImpl() {
 					CANote *note = static_cast<CANote*>(_curPlaying[i]);
 
 					message << (128 + note->voice()->midiChannel()); // note off
-					message << ( CAMidiDevice::diatonicPitchToMidiPitch(note->diatonicPitch()) );
+					message << ( CADiatonicPitch::diatonicPitchToMidiPitch(note->diatonicPitch()) );
 					message << (127);
-					midiDevice()->send(message, 0);
+					midiDevice()->send(message, _curTime);
 					message.clear();
 				}
 
@@ -348,41 +377,44 @@ void CAPlayback::stopNow()
 	Generates streams (elements lists) of playable elements (notes, rests) from the given sheet.
 */
 void CAPlayback::initStreams( CASheet *sheet ) {
-	for (int i=0; i < sheet->contextCount(); i++) {
-		if (sheet->contextAt(i)->contextType() == CAContext::Staff) {
-			CAStaff *staff = static_cast<CAStaff*>(sheet->contextAt(i));
+	for (int i=0; i < sheet->contextList().size(); i++) {
+		if (sheet->contextList()[i]->contextType() == CAContext::Staff) {
+			CAStaff *staff = static_cast<CAStaff*>(sheet->contextList()[i]);
 			// add all the voices lists to the common list stream
-			for (int j=0; j < staff->voiceCount(); j++) {
-				_stream << staff->voiceAt(j)->musElementList();
+			for (int j=0; j < staff->voiceList().size(); j++) {
+				_streamList << staff->voiceList()[j]->musElementList();
 
 				QVector<unsigned char> message;
-				message << (192 + staff->voiceAt(j)->midiChannel()); // change program
-				message << (staff->voiceAt(j)->midiProgram());
-				midiDevice()->send(message, 0);
+				message << (192 + staff->voiceList()[j]->midiChannel()); // change program
+				message << (staff->voiceList()[j]->midiProgram());
+				midiDevice()->send(message, _curTime);
 				message.clear();
 
-				message << (176 + staff->voiceAt(j)->midiChannel()); // set volume
+				message << (176 + staff->voiceList()[j]->midiChannel()); // set volume
 				message << (7);
 				message << (100);
-				midiDevice()->send(message, 0);
+				midiDevice()->send(message, _curTime);
 				message.clear();
 			}
 		}
 	}
-	_streamIdx = new int[streamCount()];
-	_curTime = new int[streamCount()];
-	_lastRepeatOpenIdx = new int[streamCount()];
-	_repeating = new bool[streamCount()];
+	_streamIdx = new int[streamList().size()];
+	_lastRepeatOpenIdx = new int[streamList().size()];
 
 	// init streams indices, current times and last repeat barlines
-	for (int i=0; i<streamCount(); i++) {
-		curTime(i) = getInitTimeStart();
+	for (int i=0; i<streamList().size(); i++) {
+		_curTime = getInitTimeStart();
 		streamIdx(i) = 0;
 		lastRepeatOpenIdx(i) = -1;
-		repeating(i) = false;
+		_repeating = false;
 		loopUntilPlayable(i, true); // ignore repeats
 	}
+
+	if (_sheet) {
+		updateSleepFactor( _sheet->getTempo(getInitTimeStart()) );
+	}
 }
+
 
 /*!
 	Loops from the stream with the given index \a i until the last element with smaller or equal start time of the current time.
@@ -391,12 +423,29 @@ void CAPlayback::initStreams( CASheet *sheet ) {
 void CAPlayback::loopUntilPlayable( int i, bool ignoreRepeats ) {
 	for (int j=streamIdx(i);
 	     j<streamAt(i).size() &&
-	     streamAt(i).at(j)->timeStart() <= curTime(i) &&
-	     (streamAt(i).at(j)->timeStart() != curTime(i) ||
+	     streamAt(i).at(j)->timeStart() <= _curTime &&
+	     (streamAt(i).at(j)->timeStart() != _curTime ||
 	      !(streamAt(i).at(j)->musElementType()==CAMusElement::Note) ||
 	      (static_cast<CANote*>(streamAt(i).at(j))->isFirstInChord())
 	     );
 	     streamIdx(i) = j++) {
+
+		if ( streamAt(i).at(j)->musElementType()==CAMusElement::TimeSignature ) {
+
+			int beats = static_cast<CATimeSignature*>(streamAt(i).at(j))->beats();
+			int beat = static_cast<CATimeSignature*>(streamAt(i).at(j))->beat();
+			//std::cout<<"  exportiere Time Signature    "<<_curTime<<" mit "<<beats<<"/"<<beat<<std::endl;
+		    midiDevice()->sendMetaEvent( _curTime, CAMidiDevice::Meta_Timesig, beats, beat, 0 );
+		}
+		if ( streamAt(i).at(j)->musElementType()==CAMusElement::KeySignature ) {
+			//int key = (static_cast<CAKeySignature*>(streamAt(i).at(j)))->diatonicKey()->numberOfAccs();
+			CAKeySignature *ks = dynamic_cast<CAKeySignature*>(streamAt(i).at(j));
+			CADiatonicKey dk = ks->diatonicKey();
+			int key = dk.numberOfAccs();
+			int minor = dk.gender() == CADiatonicKey::Minor ? 1 : 0;
+		    midiDevice()->sendMetaEvent( _curTime, CAMidiDevice::Meta_Keysig, key, minor, 0 );
+		}
+
 		if ( streamAt(i).at(j)->musElementType()==CAMusElement::Barline &&
 		     static_cast<CABarline*>(streamAt(i).at(j))->barlineType()==CABarline::RepeatOpen
 		   ) {
@@ -406,12 +455,15 @@ void CAPlayback::loopUntilPlayable( int i, bool ignoreRepeats ) {
 		if ( streamAt(i).at(j)->musElementType()==CAMusElement::Barline &&
 		     static_cast<CABarline*>(streamAt(i).at(j))->barlineType()==CABarline::RepeatClose &&
 		     !ignoreRepeats ) {
-			if (repeating(i))
-				repeating(i) = false;
-			else {
-				j = streamIdx(i) = lastRepeatOpenIdx(i)+1;
-				curTime(i) = streamAt(i).at(streamIdx(i))->timeStart();
-				repeating(i) = true;
+			if (!_repeating) {
+				// set the new index in ALL streams
+				for (int k=0; k<streamList().size(); k++) {
+					streamIdx(k) = lastRepeatOpenIdx(k)+1;
+				}
+
+				_curTime = streamAt(i).at(streamIdx(i))->timeStart();
+				j = streamIdx(i);
+				_repeating = true;
 			}
 		}
 	}
