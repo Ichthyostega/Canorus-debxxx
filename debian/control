@@ -6,6 +6,8 @@ Build-Depends: debhelper (>= 9), cmake, libasound2-dev, libqt4-dev,
  zlib1g-dev
 Standards-Version: 3.9.1
 Homepage: http://www.canorus.org/
+Vcs-Git: git://anonscm.debian.org/users/toddy/debian/canorus.git
+Vcs-Browser: http://anonscm.debian.org/gitweb/?p=users/toddy/debian/canorus.git;a=summary
 
 Package: canorus
 Architecture: any
