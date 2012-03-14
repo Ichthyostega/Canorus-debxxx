@@ -32,34 +32,49 @@ override_dh_clean:
 	mv doc/usersguide/Makefile.upstream doc/usersguide/Makefile
 	mv doc/developersguide/Makefile.upstream doc/developersguide/Makefile
 
+# This target is for the creation of a new tarball which should
+# be completely free according to the DFSG.
 #
-# TODO:
-# Upon a new upstream release, the repackaging of the upstream
-# tarball should no longer be necessary, since dpkg can now cope
-# with a debian directory inside the upstream tarball.
+# As we need to create a new tarball anyway, this target can be
+# used to clean up some cruft and unneeded files from upstream's
+# releases.
+#
+# NOTE:
+# Upstream currently suggests to use a checkout from SVN.
 #
 # NOTE:
 # Make sure to *not* use the included zlib sources for linking,
 # but the library provided by Debian.
+#
+# NOTE:
+# The only free example score is examples/musicxml/Echigo-Jishi.xml,
+# all other scores do not have a license.
 
-UPSTREAM_VERSION=0.7.R1002
-PACKAGE_VERSION=0.7
+SVN_REVISION=1251
+PACKAGE_VERSION=0.7+dfsg+svn$(SVN_REVISION)
 get-orig-source:
 	rm -rf canorus-$(PACKAGE_VERSION)/
-	tar xjf canorus_$(UPSTREAM_VERSION)_source.tar.bz2
-	# Most importantly, remove upstream's debian directory
-	find canorus-$(UPSTREAM_VERSION)/ -type d -name "debian" | xargs rm -rf
+	mkdir canorus-$(PACKAGE_VERSION)/
+	svn co -r $(SVN_REVISION) https://canorus.svn.sourceforge.net/svnroot/canorus/trunk canorus-$(PACKAGE_VERSION)/
+	# This is needed to comply with DFSG
+	mv canorus-$(PACKAGE_VERSION)/examples/musicxml/Echigo-Jishi.xml canorus-$(PACKAGE_VERSION)/examples/musicxml/backup
+	find canorus-$(PACKAGE_VERSION)/examples/musicxml/ -type f -name "*\.xml" | xargs rm -rf
+	mv canorus-$(PACKAGE_VERSION)/examples/musicxml/backup canorus-$(PACKAGE_VERSION)/examples/musicxml/Echigo-Jishi.xml
+	# Remove subversion information
+	find canorus-$(PACKAGE_VERSION)/ -type d -name "\.svn" | xargs rm -rf
+	# Remove upstream's debian directory
+	find canorus-$(PACKAGE_VERSION)/ -type d -name "debian" | xargs rm -rf
 	# Remove upstream's building information
-	find canorus-$(UPSTREAM_VERSION)/ -type d -name "\.settings" | xargs rm -rf
-	find canorus-$(UPSTREAM_VERSION)/ -type d -name "\.externalToolBuilders" | xargs rm -rf
-	find canorus-$(UPSTREAM_VERSION)/ -type f -name "\.*project" | xargs rm -rf
+	find canorus-$(PACKAGE_VERSION)/ -type d -name "\.settings" | xargs rm -rf
+	find canorus-$(PACKAGE_VERSION)/ -type d -name "\.externalToolBuilders" | xargs rm -rf
+	find canorus-$(PACKAGE_VERSION)/ -type f -name "\.*project" | xargs rm -rf
 	# Remove files for different platforms
-	find canorus-$(UPSTREAM_VERSION)/ -type d -name "windows" | xargs rm -rf
-	find canorus-$(UPSTREAM_VERSION)/ -type d -name "macosx" | xargs rm -rf
+	find canorus-$(PACKAGE_VERSION)/ -type d -name "windows" | xargs rm -rf
+	find canorus-$(PACKAGE_VERSION)/ -type d -name "macosx" | xargs rm -rf
 	# Remove zlib directory
-	find canorus-$(UPSTREAM_VERSION)/ -type d -name "zlib" | xargs rm -rf
-	mv canorus-$(UPSTREAM_VERSION)/ canorus-$(PACKAGE_VERSION)/
-	tar czf canorus_$(PACKAGE_VERSION).orig.tar.gz canorus-$(PACKAGE_VERSION)/
+	find canorus-$(PACKAGE_VERSION)/ -type d -name "zlib" | xargs rm -rf
+	tar cjf canorus_$(PACKAGE_VERSION).orig.tar.bz2 canorus-$(PACKAGE_VERSION)/
+	rm -rf canorus-$(PACKAGE_VERSION)/
 
 # TODO: Provide a target to re-create the xpm pixmap for the menu
 # This requires gm to be installed
