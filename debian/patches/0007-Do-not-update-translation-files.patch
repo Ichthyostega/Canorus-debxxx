@@ -1,6 +1,6 @@
 From: Tobias Quathamer <toddy@debian.org>
 Date: Wed, 2 Mar 2011 07:48:50 +0100
-Subject: [PATCH] Do not update translation files
+Subject: Do not update translation files
 
 During the build, translations should not be updated. Otherwise,
 the resulting diff will be huge.
@@ -9,10 +9,10 @@ the resulting diff will be huge.
  1 files changed, 6 insertions(+), 6 deletions(-)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index b1891e3..f537633 100644
+index 2d15029..9092a8f 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -651,12 +651,12 @@ ENDIF(MINGW)
+@@ -663,12 +663,12 @@ ENDIF(MINGW)
  ###############
  # Translation #
  ###############

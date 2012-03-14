@@ -1,22 +1,21 @@
 From: Tobias Quathamer <toddy@debian.org>
 Date: Wed, 2 Mar 2011 06:00:59 +0100
-Subject: [PATCH] Add -lz and -lpthread to linker flags
+Subject: Add -lz and -lpthread to linker flags
 
 When using binutils-gold, the linker uses --no-add-needed by default,
 resulting in an FTBFS.
 
-Author: Ilya Barygin <barygin@gmail.com>
-Bug-Debian: http://bugs.debian.org/554082
-Last-Update: 2011-03-02
+Closes: #554082
+Thanks: Ilya Barygin <barygin@gmail.com>
 ---
  src/CMakeLists.txt |    2 +-
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index 0414058..b1891e3 100644
+index d37faaa..2d15029 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -608,7 +608,7 @@ ENDIF(USE_PYTHON)
+@@ -620,7 +620,7 @@ ENDIF(USE_PYTHON)
  # command. Never remove that line :-)
  # Add ${QT_QTTEST_LIBRARY} below to add the Qt Test library as well
  # Add ${POPPLERQT4_LIBRARY} ${POPPLER_LIBRARY} to reactivate poppler libraries
