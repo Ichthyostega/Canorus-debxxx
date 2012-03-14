@@ -5,3 +5,4 @@
 0005-Complete-desktop-file.patch
 0006-Add-lz-and-lpthread-to-linker-flags.patch
 0007-Do-not-update-translation-files.patch
+0008-Do-not-install-examples.patch
