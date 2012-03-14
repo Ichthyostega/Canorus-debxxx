@@ -1,5 +1,5 @@
 /*!
-	Copyright (c) 2007, Matevž Jekovec, Canorus development team
+	Copyright (c) 2007-2010, Matevž Jekovec, Canorus development team
 	All Rights Reserved. See AUTHORS for a complete list of authors.
 
 	Licensed under the GNU GENERAL PUBLIC LICENSE. See LICENSE.GPL for details.
@@ -11,16 +11,16 @@
 #include <QTextStream>
 #include <QString>
 
-#include "core/keysignature.h"
-#include "core/timesignature.h"
-#include "core/clef.h"
-#include "core/barline.h"
-#include "core/playable.h"
-#include "core/note.h"
-#include "core/rest.h"
-#include "core/document.h"
-#include "core/lyricscontext.h"
-#include "core/syllable.h"
+#include "score/keysignature.h"
+#include "score/timesignature.h"
+#include "score/clef.h"
+#include "score/barline.h"
+#include "score/playable.h"
+#include "score/note.h"
+#include "score/rest.h"
+#include "score/document.h"
+#include "score/lyricscontext.h"
+#include "score/syllable.h"
 
 #include "export/export.h"
 
@@ -34,6 +34,7 @@ public:
 	// Setter methods are private!
 	inline CAVoice *curVoice() { return _curVoice; }
 	inline CASheet *curSheet() { return _curSheet; }
+	inline CADocument *curDocument() { return _curDocument; }
 	inline CAContext *curContext() { return _curContext; }
 	inline int curContextIndex() { return _curContextIndex; }
 	inline int curIndentLevel() { return _curIndentLevel; }
@@ -47,6 +48,8 @@ private:
 	void exportLyricsContextBlock(CALyricsContext *lc);
 	void exportLyricsContextImpl(CALyricsContext* lc);
 	void exportMarks( CAMusElement* );
+	void exportNoteMarks( CANote* );
+	void exportVolta( CAMusElement* );
 	void exportPlayable( CAPlayable *elt );
 
 	void writeDocumentHeader();
@@ -85,6 +88,7 @@ private:
 	inline void setCurSheet(CASheet *sheet) { _curSheet = sheet; }
 	inline void setCurContext(CAContext *context) { _curContext = context; }
 	inline void setCurContextIndex(int c) { _curContextIndex = c; }
+	inline void setCurDocument(CADocument *document) { _curDocument = document; }
 	inline void setIndentLevel( int level) { _curIndentLevel = level; }
 
 	/////////////
@@ -94,6 +98,7 @@ private:
 	CAVoice *_curVoice;
 	CASheet *_curSheet;
 	CAContext *_curContext;
+	CADocument *_curDocument;
 	int _curContextIndex;
 	int _curIndentLevel;
 
@@ -101,6 +106,14 @@ private:
 	CADiatonicPitch _lastNotePitch;
 	CAPlayableLength _lastPlayableLength;
 	int _curStreamTime;
+
+	void voltaFunction( void );
+	bool _voltaFunctionWritten;
+	bool _voltaBracketFinishAtRepeat;
+	bool _voltaBracketFinishAtBar;
+	static const QString _regExpVoltaRepeat;
+	static const QString _regExpVoltaBar;
+	bool _timeSignatureFound;
 };
 
 #endif /* LILYPONDEXPORT_H_*/

@@ -42,13 +42,11 @@
 }
 
 // convert Python's String to QString in UTF8 encoding
-%typemap(in) const QString {
+%typemap(in) const QString, QString {
 	$1 = QString::fromUtf8(PyString_AsString($input));
 }
-
-// non-const QString version
-%typemap(in) QString {
-	$1 = QString::fromUtf8(PyString_AsString($input));
+%typemap(in) const QString&, QString& {
+	(*$1) = QString::fromUtf8(PyString_AsString($input));
 }
 
 // convert returned QColor value to Python's tuple of RGBA integers
@@ -104,13 +102,32 @@
     }
 }
 
+// convert ordinary integers to python integers
+%typemap(out) const QList<int>, QList<int> {
+	PyObject *list = PyList_New(0);
+	for (int i=0; i<$1.size(); i++)
+		PyList_Append(list, PyInt_FromLong($1[i]));
+	
+	$result = list;
+}
+%typemap(out) const QList<int>&, QList<int>& {
+	PyObject *list = PyList_New(0);
+	for (int i=0; i<$1->size(); i++)
+		PyList_Append(list, PyInt_FromLong($1->at(i)));
+	
+	$result = list;
+}
+
 // convert QList to Python list
 // Note - C++ references (QList<T>&) are pointers in Python (QList<T>*).
 %typemap(out) const QList<CAMusElement*>, QList<CAMusElement*>,
               const QList<CANote*>, QList<CANote*>,
               const QList<CARest*>, QList<CARest*>,
               const QList<CAMark*>, QList<CAMark*>,
-              const QList<CAPlayable*>, QList<CAPlayable*> {
+              const QList<CAPlayable*>, QList<CAPlayable*>,
+              const QList<CASyllable*>, QList<CASyllable*>,
+              const QList<CAFiguredBasMark*>, QList<CAFiguredBassMark*>,
+              const QList<CAFunctionMark*>, QList<CAFunctionMark*> {
 	PyObject *list = PyList_New(0);
 	for (int i=0; i<$1.size(); i++)
 		PyList_Append(list, CASwigPython::toPythonObject($1.at(i), CASwigPython::MusElement));
@@ -121,16 +138,46 @@
               const QList<CANote*>&, QList<CANote*>&,
               const QList<CARest*>&, QList<CARest*>&,
               const QList<CAMark*>&, QList<CAMark*>&,
-              const QList<CAPlayable*>&, QList<CAPlayable*>& {
+              const QList<CAPlayable*>&, QList<CAPlayable*>&,
+              const QList<CASyllable*>&, QList<CASyllable*>&,
+              const QList<CAFiguredBassMark*>&, QList<CAFiguredBassMark*>&,
+              const QList<CAFunctionMark*>&, QList<CAFunctionMark*>& {
 	PyObject *list = PyList_New(0);
 	for (int i=0; i<$1->size(); i++)
 		PyList_Append(list, CASwigPython::toPythonObject($1->at(i), CASwigPython::MusElement));
 	
 	$result = list;
 }
+%typemap(out) const QList< QList<CAMidiNote*> >, QList< QList<CAMidiNote*> > {
+	PyObject *list = PyList_New(0);
+	for (int i=0; i<$1.size(); i++) {
+            PyObject *curList = PyList_New(0);
+            for (int j=0; j<$1.at(i).size(); j++) {
+                PyList_Append(curList, CASwigPython::toPythonObject($1.at(i).at(j), CASwigPython::MusElement));
+            }
+            PyList_Append(list, curList);
+        }
+
+	$result = list;
+}
+%typemap(out) const QList<CAVoice*>, QList<CAVoice*> {
+	PyObject *list = PyList_New(0);
+	for (int i=0; i<$1.size(); i++)
+		PyList_Append(list, CASwigPython::toPythonObject($1.at(i), CASwigPython::Voice));
+	
+	$result = list;
+}
+%typemap(out) const QList<CAVoice*>&, QList<CAVoice*>& {
+	PyObject *list = PyList_New(0);
+	for (int i=0; i<$1->size(); i++)
+		PyList_Append(list, CASwigPython::toPythonObject($1->at(i), CASwigPython::Voice));
+	
+	$result = list;
+}
 %typemap(out) const QList<CAContext*>, QList<CAContext*>,
               const QList<CAStaff*>, QList<CAStaff*>,
               const QList<CALyricsContext*>, QList<CALyricsContext*>,
+              const QList<CAFiguredBassContext*>, QList<CAFiguredBassContext*>,
               const QList<CAFunctionMarkContext*>, QList<CAFunctionMarkContext*> {
 	PyObject *list = PyList_New(0);
 	for (int i=0; i<$1.size(); i++)
@@ -141,6 +188,7 @@
 %typemap(out) const QList<CAContext*>&, QList<CAContext*>&,
               const QList<CAStaff*>&, QList<CAStaff*>&,
               const QList<CALyricsContext*>&, QList<CALyricsContext*>&,
+              const QList<CAFiguredBassContext*>&, QList<CAFiguredBassContext*>&,
               const QList<CAFunctionMarkContext*>&, QList<CAFunctionMarkContext*>& {
 	PyObject *list = PyList_New(0);
 	for (int i=0; i<$1->size(); i++)
@@ -148,10 +196,31 @@
 	
 	$result = list;
 }
-%typemap(out) const QList<CAVoice*>, QList<CAVoice*> {
+%typemap(out) const QList<CASheet*>, QList<CASheet*> {
 	PyObject *list = PyList_New(0);
 	for (int i=0; i<$1.size(); i++)
-		PyList_Append(list, CASwigPython::toPythonObject($1.at(i), CASwigPython::Voice));
+		PyList_Append(list, CASwigPython::toPythonObject($1.at(i), CASwigPython::Sheet));
+	
+	$result = list;
+}
+%typemap(out) const QList<CASheet*>&, QList<CASheet*>& {
+	PyObject *list = PyList_New(0);
+	for (int i=0; i<$1->size(); i++)
+		PyList_Append(list, CASwigPython::toPythonObject($1->at(i), CASwigPython::Sheet));
+	
+	$result = list;
+}
+%typemap(out) const QList<CAResource*>, QList<CAResource*> {
+	PyObject *list = PyList_New(0);
+	for (int i=0; i<$1.size(); i++)
+		PyList_Append(list, CASwigPython::toPythonObject($1.at(i), CASwigPython::Resource));
+	
+	$result = list;
+}
+%typemap(out) const QList<CAResource*>&, QList<CAResource*>& {
+	PyObject *list = PyList_New(0);
+	for (int i=0; i<$1->size(); i++)
+		PyList_Append(list, CASwigPython::toPythonObject($1->at(i), CASwigPython::Resource));
 	
 	$result = list;
 }
@@ -173,10 +242,12 @@
 
 void markDelete( PyObject* ); // function used to delete Canorus objects inside Python
 const char* tr( const char * sourceText, const char * comment = 0, int n = -1 );
+bool hasGui();
+
+// the following functions work when a plugin is launched inside Canorus:
 void rebuildUi();
 void repaintUi();
-bool hasGui();
-void setSelection( QList<CAMusElement*> elements ); // selects the given \a elements. Works only in GUI!
+void setSelection( QList<CAMusElement*> elements, bool centerOn=false );
 
 %include "scripting/canoruslibrary.i"
 
@@ -225,7 +296,11 @@ bool hasGui() {
 #endif
 }
 
-void setSelection( QList<CAMusElement*> elements ) {
+/*!
+    Selects the given elements in the current score view and optionally scrolls
+    the view to center them.
+*/
+void setSelection( QList<CAMusElement*> elements, bool centerOn ) {
 #ifndef SWIGCPP
 	if (!elements.size() || !elements[0]->context() || !elements[0]->context()->sheet() || !elements[0]->context()->sheet()->document()) {
 		return;
@@ -234,12 +309,25 @@ void setSelection( QList<CAMusElement*> elements ) {
 	CADocument *doc = elements[0]->context()->sheet()->document();
 	QList<CAMainWin*> mainwins = CACanorus::findMainWin(doc);
 	
-	if (!mainwins.size() || !mainwins[0]->currentScoreViewPort()) {
+	if (!mainwins.size() || !mainwins[0]->currentScoreView()) {
 		return;
 	}
 	
-	mainwins[0]->currentScoreViewPort()->clearSelection();
-	mainwins[0]->currentScoreViewPort()->addToSelection(elements);
+	mainwins[0]->currentScoreView()->clearSelection();
+	mainwins[0]->currentScoreView()->addToSelection(elements);
+
+        if (centerOn) {
+            CADrawableMusElement *firstElement = mainwins[0]->currentScoreView()->selection()[0];
+            mainwins[0]->currentScoreView()->setCenterCoords(
+                firstElement->xPos(),
+                firstElement->yPos(),
+                false
+            );
+            mainwins[0]->currentScoreView()->setWorldX(
+                firstElement->xPos()-12,
+                false
+            );
+        }
 #else
 	guiError();
 #endif
@@ -261,6 +349,10 @@ PyObject *CASwigPython::toPythonObject(void *object, CASwigPython::CAClassType t
 			return SWIG_Python_NewPointerObj(object, SWIGTYPE_p_CADocument, 0);
 			break;
 		}
+		case CASwigPython::Resource: {
+			return SWIG_Python_NewPointerObj(object, SWIGTYPE_p_CAResource, 0);
+			break;
+		}
 		case CASwigPython::Sheet: {
 			return SWIG_Python_NewPointerObj(object, SWIGTYPE_p_CASheet, 0);
 			break;
@@ -271,6 +363,8 @@ PyObject *CASwigPython::toPythonObject(void *object, CASwigPython::CAClassType t
 				return SWIG_Python_NewPointerObj(object, SWIGTYPE_p_CAStaff, 0);
 			case CAContext::LyricsContext:
 				return SWIG_Python_NewPointerObj(object, SWIGTYPE_p_CALyricsContext, 0);
+			case CAContext::FiguredBassContext:
+				return SWIG_Python_NewPointerObj(object, SWIGTYPE_p_CAFiguredBassContext, 0);
 			case CAContext::FunctionMarkContext:
 				return SWIG_Python_NewPointerObj(object, SWIGTYPE_p_CAFunctionMarkContext, 0);
 			default:
@@ -298,6 +392,8 @@ PyObject *CASwigPython::toPythonObject(void *object, CASwigPython::CAClassType t
 				return SWIG_Python_NewPointerObj(object, SWIGTYPE_p_CAClef, 0);
 			case CAMusElement::Barline:
 				return SWIG_Python_NewPointerObj(object, SWIGTYPE_p_CABarline, 0);
+			case CAMusElement::FiguredBassMark:
+				return SWIG_Python_NewPointerObj(object, SWIGTYPE_p_CAFiguredBassMark, 0);
 			case CAMusElement::FunctionMark:
 				return SWIG_Python_NewPointerObj(object, SWIGTYPE_p_CAFunctionMark, 0);
 			case CAMusElement::Syllable:
@@ -308,6 +404,8 @@ PyObject *CASwigPython::toPythonObject(void *object, CASwigPython::CAClassType t
 				return SWIG_Python_NewPointerObj(object, SWIGTYPE_p_CASlur, 0);
 			case CAMusElement::Tuplet:
 				return SWIG_Python_NewPointerObj(object, SWIGTYPE_p_CATuplet, 0);
+			case CAMusElement::MidiNote:
+				return SWIG_Python_NewPointerObj(object, SWIGTYPE_p_CAMidiNote, 0);
 			default:
 				std::cerr << "canoruspython.i: Wrong CAMusElement::musElementType()!" << std::endl;
 				return 0;

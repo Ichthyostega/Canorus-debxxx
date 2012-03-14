@@ -8,9 +8,9 @@
 #include "import/canimport.h"
 #include "import/canorusmlimport.h"
 #include "core/archive.h"
-#include "core/resource.h"
+#include "score/resource.h"
 
-#include "core/document.h"
+#include "score/document.h"
 
 #include <iostream>
 #include <QDir>
@@ -71,6 +71,10 @@ CADocument *CACanImport::importDocumentImpl() {
 		// Replace the newly created archive with the current one
 		delete doc->archive();
 		doc->setArchive( arc );
+
+		if (!_fileName.isEmpty()) {
+			doc->setFileName(_fileName);
+		}
 
 		setStatus(0); // done
 		return doc;

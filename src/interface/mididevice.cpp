@@ -1,20 +1,19 @@
-/*! 
+/*!
 	Copyright (c) 2007, Matevž Jekovec, Canorus development team
 	All Rights Reserved. See AUTHORS for a complete list of authors.
-	
+
 	Licensed under the GNU GENERAL PUBLIC LICENSE. See COPYING for details.
 */
 
 #include "interface/mididevice.h"
-#include "core/sheet.h"
-#include "core/voice.h"
-#include "core/diatonickey.h"
-#include "core/diatonicpitch.h"
+#include "score/sheet.h"
+#include "score/voice.h"
+#include "score/diatonickey.h"
+#include "score/diatonicpitch.h"
 
-CAMidiDevice::CAMidiDevice()
- : QObject()
-{
-	GM_INSTRUMENTS = QStringList() <<
+QStringList CAMidiDevice::GM_INSTRUMENTS = QStringList() <<
+	// tr() function actually does nothing here, because translator is not initialized yet.
+	// However, this is needed for .ts files to be generated!
 	QObject::tr("Acoustic Grand Piano", "instrument") <<
 	QObject::tr("Bright Acoustic Piano", "instrument") <<
 	QObject::tr("Electric Grand Piano", "instrument") <<
@@ -143,30 +142,58 @@ CAMidiDevice::CAMidiDevice()
 	QObject::tr("Helicopter", "instrument") <<
 	QObject::tr("Applause", "instrument") <<
 	QObject::tr("Gunshot", "instrument");
-}
 
 /*!
 	\class CAMidiDevice
 	\brief Canorus<->Midi bridge.
-	
+
 	This class represents generic Midiinterface to Canorus.
 	Any Midi wrapper class should extend this class.
-	
+
 	Currently CARtMidi is one of the Midi libraries implemented. This class is an example
 	of the so called real-time Midi classes. This means that the midi event will be heard
 	at the moment it is sent.
-	
+
 	Another example is CAMidiExport. This is a Midi file writer. The class is an example
-	of the non-real-time Midi classes. It needs the offset in miliseconds to write the
+	of the non-real-time Midi classes. It needs also the time to write the
 	midi event to a file.
-	
+
 	\warning MIDI INPUT is not available for Swig and therefore scripting languages yet.
 */
+
+
+CAMidiDevice::CAMidiDevice()
+ : QObject()
+{
+}
+
+/*!
+	This function returns translated instrument name for the given MIDI program.
+
+	\sa instrumentNames(), GM_INSTRUMENTS
+*/
+QString CAMidiDevice::instrumentName( int midiProgram ) {
+	return QObject::tr(CAMidiDevice::GM_INSTRUMENTS[ midiProgram ].toStdString().c_str(), "instrument");
+}
+
+/*!
+	This function returns a list of translated GM instruments.
+	
+	\sa instrumentName(), GM_INSTRUMENTS
+*/
+QStringList CAMidiDevice::instrumentNames() {
+	QStringList trInstruments;
+	for (int i=0; i<CAMidiDevice::GM_INSTRUMENTS.size(); i++) {
+		trInstruments << QObject::tr(CAMidiDevice::GM_INSTRUMENTS[i].toStdString().c_str(), "instrument");
+	}
+	
+	return trInstruments;
+}
 
 /*!
 	Returns the first midi channel that isn't occupied by voices in the given sheet \a s yet.
 	Returns 0, if all the channels are occupied.
-	
+
 	\warning This function never returns midi channel 10 as it's reserved for percussion instruments only.
 */
 unsigned char CAMidiDevice::freeMidiChannel( CASheet* s ) {
@@ -177,67 +204,16 @@ unsigned char CAMidiDevice::freeMidiChannel( CASheet* s ) {
 		int j=0;
 		while (j<voices.size() && voices[j]->midiChannel()!=i)
 			j++;
-		
+
 		if (j==voices.size() && i!=9)
 			return i;
 	}
-	
+
 	return 0;
 }
 
 /*!
-	Converts the given internal Canorus \a pitch with accidentals \a acc to
-	standard unsigned 7-bit MIDI pitch.
-	
-	\sa _pitch, midiPitchToPitch()
-*/
-int CAMidiDevice::diatonicPitchToMidiPitch( CADiatonicPitch pitch ) {
-	float step = (float)12/7;
-	
-	// +0.3 - rounding factor for 7/12 that exactly underlays every tone in octave, if rounded
-	// +12 - our logical pitch starts at Sub-contra C, midi counting starts one octave lower
-	return qRound( pitch.noteName()*step + 0.3 + 12) + pitch.accs();
-}
-
-/*!
-	Converts the given standard unsigned 7-bit MIDI pitch to internal Canorus pitch.
-	
-	\todo This method currently doesn't do anything. Problem is determination of sharp/flat from MIDI. -Matevz
-	
-	\sa _pitch, pitchToMidiPitch()
-*/
-CADiatonicPitch CAMidiDevice::midiPitchToDiatonicPitch(int midiPitch) {
-	CADiatonicKey cm;	// Default is here C Major
-	return midiPitchToDiatonicPitch(midiPitch, cm);
-}
-/*!
-
-	Converts the given standard unsigned 7-bit MIDI pitch to internal Canorus pitch dependent on the
-	diatonic key k.
-	
-	\todo This method currently only assumes the diatonic key c.
-	
-	\sa _pitch, pitchToMidiPitch()
-*/
-CADiatonicPitch CAMidiDevice::midiPitchToDiatonicPitch(int midiPitch, CADiatonicKey k) {
-	float step =(float)7/12;
-
-	int oktave = midiPitch /12 - 1;
-	int rest = midiPitch %12;
-	CADiatonicPitch y;
-	// todo: Some more explanation of the algorithm.
-	y.setNoteName( qRound( step*rest -0.5 + 1.0/7 ));
-	y.setAccs( 0 );
-	y.setAccs( (diatonicPitchToMidiPitch( y )%12) == rest ? 0 : 1 );
-	
-	CADiatonicPitch x;
-	x.setNoteName(y.noteName()+oktave*7);
-	x.setAccs(y.accs()); 
-	return x;
-}
-
-
-/*!
 	\var CAMidiDevice::GM_INSTRUMENTS
-	Human names for General Midi Instruments.
+	Original General Midi Instruments (program) names.
+	Call instrumentName() or instrumentNames() to get translated strings.
 */

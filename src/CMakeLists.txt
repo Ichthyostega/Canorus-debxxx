@@ -1,14 +1,23 @@
 # Define Sources of this Canorus directory
 
 INCLUDE(CheckLibraryExists)
+
 FIND_PACKAGE(Qt4)
 
 # This module is used to resolve the file dependencies
-# for QT files using an UI (User Unterface) Qt file
+# for QT files using an UI (User Interface) Qt file
 # created with the Qt4 designer
 # INCLUDE(AddFileDependencies)
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g")
+IF(NOT CMAKE_BUILD_TYPE)
+	SET(CMAKE_BUILD_TYPE Debug)
+ENDIF(NOT CMAKE_BUILD_TYPE)
+
+SET(CMAKE_C_FLAGS_DEBUG "-O0 -g")
+SET(CMAKE_C_FLAGS_RELEASE "-O2")
+
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
 
 # Build universal binaries on Mac
 IF(APPLE)
@@ -42,7 +51,7 @@ ELSE(RUBY_INCLUDE_PATH AND NOT NO_RUBY)
 ENDIF(RUBY_INCLUDE_PATH AND NOT NO_RUBY)
 
 FIND_PACKAGE(PythonLibs)
-IF(PYTHON_INCLUDE_PATH AND NOT NO_PYTHON)
+IF(PYTHON_INCLUDE_DIRS AND NOT NO_PYTHON)
 	MESSAGE("Python Library and Development files found. Python extensions enabled.")
 	# PYTHON_LIBRARY points to C:\PythonXY\pythonXY.dll
 	# PYTHON_LIB should point to C:\PythonXY\Lib
@@ -59,10 +68,10 @@ IF(PYTHON_INCLUDE_PATH AND NOT NO_PYTHON)
 	ENDIF("${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
 	
 	SET(USE_PYTHON True)
-ELSE(PYTHON_INCLUDE_PATH AND NOT NO_PYTHON)
+ELSE(PYTHON_INCLUDE_DIRS AND NOT NO_PYTHON)
 	MESSAGE("Python Library and Development files *not* found. Python extensions disabled!")
 	SET(PYTHON_LIBRARY "")
-ENDIF(PYTHON_INCLUDE_PATH AND NOT NO_PYTHON)
+ENDIF(PYTHON_INCLUDE_DIRS AND NOT NO_PYTHON)
 
 ##################################
 # Poppler detection for printing #
@@ -115,17 +124,20 @@ SET(Canorus_UIs		# List of .ui forms drawn by qt-designer that need to be compil
 # Define the MOC source files used by Canorus
 SET(Canorus_Gui_MOCs	# List of classes which Qt needs to produce MOCs for them (in order for events, signals, slots and other macros to work)
 	core/autorecovery.h
+
+	scoreui/keysignatureui.h
 	
 	ui/mainwin.h
 	ui/settingsdialog.h
 	ui/propertiesdialog.h
 	ui/transposeview.h
-	
+	ui/singleaction.h
+
 	widgets/lcdnumber.h
-	widgets/viewport.h
-	widgets/viewportcontainer.h
-	widgets/scoreviewport.h
-	widgets/sourceviewport.h
+	widgets/view.h
+	widgets/viewcontainer.h
+	widgets/scoreview.h
+	widgets/sourceview.h
 	widgets/toolbutton.h
 	widgets/toolbuttonpopup.h
 	widgets/menutoolbutton.h
@@ -134,9 +146,15 @@ SET(Canorus_Gui_MOCs	# List of classes which Qt needs to produce MOCs for them (
 	widgets/midirecorderview.h
 	widgets/resourceview.h
 	widgets/helpbrowser.h
+	widgets/actionseditor.h
+	widgets/progressstatusbar.h
+	widgets/tabwidget.h
 	
 	control/previewctl.h
 	control/printctl.h
+	control/mainwinprogressctl.h
+
+	scorectl/keysignaturectl.h
 )
 
 SET(Canorus_Core_MOCs # MOCs compiled into scripting library as well
@@ -192,7 +210,7 @@ QT4_WRAP_CPP(Canorus_Core_MOC_Srcs ${Canorus_Core_MOCs})
 #########################
 # List of other sources #
 #########################
-SET(Canorus_Core_Srcs		# Core sources - data part of the MVC model
+SET(Canorus_Core_Srcs		# Core sources
 	core/settings.cpp
 	core/undocommand.cpp
 	core/undo.cpp
@@ -203,51 +221,57 @@ SET(Canorus_Core_Srcs		# Core sources - data part of the MVC model
 	core/typesetter.cpp
 	core/tar.cpp
 	core/archive.cpp
-	core/resource.cpp
 	core/midirecorder.cpp
-	
-	core/playablelength.cpp
-	core/diatonicpitch.cpp
-	core/interval.cpp
-	core/diatonickey.cpp
-	core/transpose.cpp
-	
-	core/document.cpp
-	core/sheet.cpp
-	core/context.cpp
-	core/staff.cpp
-	core/functionmarkcontext.cpp
-	core/lyricscontext.cpp
-	
-	core/muselement.cpp
 	core/muselementfactory.cpp
-	core/voice.cpp
-	core/barline.cpp
-	core/clef.cpp
-	core/keysignature.cpp
-	core/timesignature.cpp
-	core/playable.cpp
-	core/note.cpp
-	core/slur.cpp
-	core/tuplet.cpp
-	core/rest.cpp
+	core/transpose.cpp
+)
+
+SET(Canorus_Score_Srcs		# Score representation
+	score/playablelength.cpp
+	score/diatonicpitch.cpp
+	score/interval.cpp
+	score/diatonickey.cpp
 	
-	core/mark.cpp
-	core/articulation.cpp
-	core/fermata.cpp
-	core/repeatmark.cpp
-	core/tempo.cpp
-	core/ritardando.cpp
-	core/text.cpp
-	core/bookmark.cpp
-	core/fingering.cpp
-	core/dynamic.cpp
-	core/crescendo.cpp
-	core/instrumentchange.cpp
+	score/document.cpp
+	score/resource.cpp
+	score/sheet.cpp
+	score/context.cpp
+	score/staff.cpp
+	score/functionmarkcontext.cpp
+	score/figuredbasscontext.cpp
+	score/lyricscontext.cpp
 	
-	core/syllable.cpp
+	score/muselement.cpp
+	score/voice.cpp
+	score/barline.cpp
+	score/clef.cpp
+	score/keysignature.cpp
+	score/timesignature.cpp
+	score/playable.cpp
+	score/note.cpp
+	score/slur.cpp
+	score/tuplet.cpp
+	score/rest.cpp
+	score/midinote.cpp
 	
-	core/functionmark.cpp
+	score/mark.cpp
+	score/articulation.cpp
+	score/fermata.cpp
+	score/repeatmark.cpp
+	score/tempo.cpp
+	score/ritardando.cpp
+	score/text.cpp
+	score/bookmark.cpp
+	score/fingering.cpp
+	score/dynamic.cpp
+	score/crescendo.cpp
+	score/instrumentchange.cpp
+	
+	score/syllable.cpp
+	
+	score/functionmark.cpp
+	
+	score/figuredbassmark.cpp
 )
 
 SET(Canorus_Scripting_Srcs	# Sources meant for bridging C++<->scripting language
@@ -257,18 +281,21 @@ SET(Canorus_Scripting_Srcs	# Sources meant for bridging C++<->scripting language
 
 SET(Canorus_Widget_Srcs  	# Sources for all custom widgets present in Canorus
 	widgets/lcdnumber.cpp
-	widgets/scoreviewport.cpp
-	widgets/sourceviewport.cpp
+	widgets/scoreview.cpp
+	widgets/sourceview.cpp
 	widgets/toolbutton.cpp
 	widgets/toolbuttonpopup.cpp
 	widgets/menutoolbutton.cpp
 	widgets/undotoolbutton.cpp
-	widgets/viewport.cpp
-	widgets/viewportcontainer.cpp
+	widgets/view.cpp
+	widgets/viewcontainer.cpp
 	widgets/pyconsole.cpp
 	widgets/midirecorderview.cpp
 	widgets/resourceview.cpp
 	widgets/helpbrowser.cpp
+	widgets/actionseditor.cpp
+	widgets/progressstatusbar.cpp
+	widgets/tabwidget.cpp
 )
 
 SET(Canorus_Ui_Srcs		# Implementations of widgets that have their own .ui qt-designer files
@@ -276,12 +303,18 @@ SET(Canorus_Ui_Srcs		# Implementations of widgets that have their own .ui qt-des
 	ui/settingsdialog.cpp
 	ui/propertiesdialog.cpp
 	ui/transposeview.cpp
+	ui/singleaction.cpp
+
+	scoreui/keysignatureui.cpp
 )
 
 SET(Canorus_Gui_Ctl_Srcs       # Control instances for user interface or views 
 	control/previewctl.cpp
 	control/printctl.cpp
 	control/helpctl.cpp
+	control/mainwinprogressctl.cpp
+
+	scorectl/keysignaturectl.cpp
 )
 
 SET(Canorus_Ctl_Srcs            # Control instances for user interface or views and core
@@ -290,31 +323,35 @@ SET(Canorus_Ctl_Srcs            # Control instances for user interface or views 
 	control/resourcectl.cpp
 )
 
-SET(Canorus_Drawable_Srcs	# Drawable instances of the data
-	drawable/drawable.cpp
+SET(Canorus_Layout_Srcs	# Drawable instances of the data
+	layout/layoutengine.cpp
+	
+	layout/drawable.cpp
 
-	drawable/drawablecontext.cpp
-	drawable/drawablestaff.cpp
-	drawable/drawablelyricscontext.cpp
-	drawable/drawablefunctionmarkcontext.cpp
+	layout/drawablecontext.cpp
+	layout/drawablestaff.cpp
+	layout/drawablelyricscontext.cpp
+	layout/drawablefiguredbasscontext.cpp
+	layout/drawablefunctionmarkcontext.cpp
 
-	drawable/drawablemuselement.cpp
-	drawable/drawablenote.cpp
-	drawable/drawableslur.cpp
-	drawable/drawabletuplet.cpp
-	drawable/drawablerest.cpp
-	drawable/drawableaccidental.cpp
-	drawable/drawableclef.cpp
-	drawable/drawablekeysignature.cpp
-	drawable/drawabletimesignature.cpp
-	drawable/drawablebarline.cpp
-	drawable/drawablemark.cpp
-	drawable/drawablesyllable.cpp
-	drawable/drawablefunctionmark.cpp
+	layout/drawablemuselement.cpp
+	layout/drawablenote.cpp
+	layout/drawableslur.cpp
+	layout/drawabletuplet.cpp
+	layout/drawablerest.cpp
+	layout/drawablemidinote.cpp
+	layout/drawableaccidental.cpp
+	layout/drawableclef.cpp
+	layout/drawablekeysignature.cpp
+	layout/drawabletimesignature.cpp
+	layout/drawablebarline.cpp
+	layout/drawablemark.cpp
+	layout/drawablesyllable.cpp
+	layout/drawablefiguredbassnumber.cpp
+	layout/drawablefunctionmark.cpp
 )
 
 SET(Canorus_Interface_Srcs	# Other interfaces like Engraver, Playback, Plugin manager and others belong here.
-	interface/engraver.cpp
 	interface/playback.cpp
 	interface/rtmididevice.cpp
 	interface/mididevice.cpp
@@ -350,77 +387,49 @@ SET(Canorus_RtMidi_Srcs		# RtMIDI library
 	rtmidi/RtMidi.cpp
 )
 
+SET(Canorus_PMIDI_Srcs		# PMIDI excerpts
+	import/pmidi/glib.c
+	import/pmidi/elements.c
+	import/pmidi/except.c
+	import/pmidi/mdutil.c
+	import/pmidi/midiread.c
+	import/pmidi/wrapper.c
+)
+
 SET(Canorus_Srcs
 	main.cpp
 	canorus.cpp
 	
 	${Canorus_Core_Srcs}
+	${Canorus_Score_Srcs}
 	${Canorus_Ctl_Srcs}
 	${Canorus_Gui_Ctl_Srcs}
 	${Canorus_Scripting_Srcs}
-	${Canorus_Drawable_Srcs}
+	${Canorus_Layout_Srcs}
 	${Canorus_Ui_Srcs}
 	${Canorus_Interface_Srcs}
 	${Canorus_Export_Srcs}
 	${Canorus_Import_Srcs}
 	${Canorus_RtMidi_Srcs}
 	${Canorus_Widget_Srcs}
+	${Canorus_PMIDI_Srcs}
 )
 
 SET(Canorus_Swig_Srcs	# Sources which Swig needs to build its Python/Ruby module.
-	core/document.cpp
-	core/sheet.cpp
-	core/context.cpp
-	core/staff.cpp
-	core/lyricscontext.cpp
-	core/functionmarkcontext.cpp
-
-	core/muselement.cpp
-	core/voice.cpp
-	core/barline.cpp
-	core/clef.cpp
-	core/keysignature.cpp
-	core/timesignature.cpp
-	core/playable.cpp
-	core/note.cpp
-	core/slur.cpp
-	core/tuplet.cpp
-	core/rest.cpp
-	
-	core/playablelength.cpp
-	core/diatonicpitch.cpp
-	core/interval.cpp
-	core/diatonickey.cpp
+	${Canorus_Score_Srcs}
 	core/transpose.cpp
-	
-	core/mark.cpp
-	core/articulation.cpp
-	core/fermata.cpp
-	core/repeatmark.cpp
-	core/tempo.cpp
-	core/ritardando.cpp
-	core/text.cpp
-	core/bookmark.cpp
-	core/fingering.cpp
-	core/dynamic.cpp
-	core/crescendo.cpp
-	core/instrumentchange.cpp
-
-	core/syllable.cpp
-	
-	core/functionmark.cpp
 	
 	core/settings.cpp
 	core/file.cpp
 	core/tar.cpp
 	core/archive.cpp
-	core/resource.cpp
 	core/midirecorder.cpp
 	core/typesetter.cpp
 	${Canorus_Import_Srcs}
 	${Canorus_Export_Srcs}
 	${Canorus_Ctl_Srcs}
 	${Canorus_RtMidi_Srcs}
+	${Canorus_PMIDI_Srcs}
 	interface/rtmididevice.cpp
 	interface/mididevice.cpp
 	interface/playback.cpp
@@ -429,7 +438,7 @@ SET(Canorus_Swig_Srcs	# Sources which Swig needs to build its Python/Ruby module
 	interface/plugin.cpp
 	interface/pluginaction.cpp
 	interface/pluginmanager.cpp
-#	interface/plugins_swig.cpp
+	interface/plugins_swig.cpp
 	scripting/swigpython.cpp
 	scripting/swigruby.cpp
 	${Canorus_Core_MOC_Srcs}
@@ -443,6 +452,8 @@ SET( Canorus_Scripts "scripts" ) # Official scripts shipped with Canorus.
 SET( Canorus_Plugins "plugins" ) # Official plug-ins shipped with Canorus.
 
 SET( Canorus_Images "ui/images" )
+
+SET( Canorus_Examples "../examples" )
 
 # Set translation files
 FILE(GLOB Canorus_Translation_Srcs "lang/*.ts") # lang/*.ts -> Canorus_Translation_Srcs
@@ -545,7 +556,7 @@ IF(USE_RUBY)
 ENDIF(USE_RUBY)
 
 IF(USE_PYTHON)
-	INCLUDE_DIRECTORIES(${PYTHON_INCLUDE_PATH})
+	INCLUDE_DIRECTORIES(${PYTHON_INCLUDE_DIRS})
 	SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/scripting/canoruspython.i PROPERTIES CPLUSPLUS ON)
 	
 	SET(CANORUS_PYTHON_WRAP_CXX ${CMAKE_CURRENT_SOURCE_DIR}/scripting/canoruspythonPYTHON_wrap.cxx)
@@ -675,11 +686,11 @@ IF(USE_PYTHON)
 ENDIF(USE_PYTHON)
 
 # Install scripts
-INSTALL( DIRECTORY ${Canorus_Scripts} DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}" PATTERN ".svn" EXCLUDE )
+INSTALL( DIRECTORY ${Canorus_Scripts} DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}" )
 # Install plugins
-INSTALL( DIRECTORY ${Canorus_Plugins} DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}" PATTERN ".svn" EXCLUDE )
+INSTALL( DIRECTORY ${Canorus_Plugins} DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}" )
 # Install data - icons, images, sounds etc.
-INSTALL( DIRECTORY ${Canorus_Images} DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}" PATTERN ".svn" EXCLUDE )
+INSTALL( DIRECTORY ${Canorus_Images} DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}" )
 # Install translations
 INSTALL(FILES ${Canorus_Translation_Bins} DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}/lang")
 # Install fonts
@@ -689,6 +700,8 @@ INSTALL(CODE "FILE(MAKE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA
 INSTALL(CODE "FILE(MAKE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}/doc/usersguide)")
 FILE(GLOB Canorus_Usersguide RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ../doc/usersguide/*.qhc ../doc/usersguide/*.qch)
 INSTALL(FILES ${Canorus_Usersguide} DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}/doc/usersguide")
+# Install examples
+INSTALL( DIRECTORY ${Canorus_Examples} DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}" )
 
 IF(MINGW)
 	# Install Qt libs

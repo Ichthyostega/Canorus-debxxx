@@ -8,13 +8,13 @@
 #include "core/undo.h"
 #include "core/undocommand.h"
 #include "canorus.h"
-#include "core/sheet.h"
-#include "core/document.h"
-#include "core/lyricscontext.h"
-#include "core/voice.h"
-#include "core/resource.h"
-#include "widgets/scoreviewport.h"
-#include "widgets/sourceviewport.h"
+#include "score/sheet.h"
+#include "score/document.h"
+#include "score/lyricscontext.h"
+#include "score/voice.h"
+#include "score/resource.h"
+#include "widgets/scoreview.h"
+#include "widgets/sourceview.h"
 
 /*!
 	\class CAUndoCommand
@@ -73,7 +73,7 @@ void CAUndoCommand::redo() {
 
 /*!
 	Creates the actual undo (switches the pointers of the document) and updates the GUI.
-	The updating GUI part is quite complicated as it has to update all viewports showing
+	The updating GUI part is quite complicated as it has to update all views showing
 	the right structure and sub-structure (eg. voice with the same index in the new document).
 */
 void CAUndoCommand::undoDocument( CADocument *current, CADocument *newDocument ) {
@@ -82,41 +82,43 @@ void CAUndoCommand::undoDocument( CADocument *current, CADocument *newDocument )
 	QHash< CAVoice*, CAVoice* > voiceMap;       // map old->new voices
 	bool rebuildNeeded=false;
 
-	for (int i=0; i<newDocument->sheetCount() && i<current->sheetCount(); i++) {
-		sheetMap[current->sheetAt(i)] = newDocument->sheetAt(i);
-		for (int j=0; j<newDocument->sheetAt(i)->contextCount() && j<current->sheetAt(i)->contextCount(); j++) {
-			contextMap[current->sheetAt(i)->contextAt(j)] = newDocument->sheetAt(i)->contextAt(j);
+	for (int i=0; i<newDocument->sheetList().size() && i<current->sheetList().size(); i++) {
+		sheetMap[current->sheetList()[i]] = newDocument->sheetList()[i];
+		for (int j=0; j<newDocument->sheetList()[i]->contextList().size() && j<current->sheetList()[i]->contextList().size(); j++) {
+			contextMap[current->sheetList()[i]->contextList()[j]] = newDocument->sheetList()[i]->contextList()[j];
 		}
-		for (int j=0; j<newDocument->sheetAt(i)->voiceCount() && j<current->sheetAt(i)->voiceCount(); j++) {
-			voiceMap[current->sheetAt(i)->voiceAt(j)] = newDocument->sheetAt(i)->voiceAt(j);
+		for (int j=0; j<newDocument->sheetList()[i]->voiceList().size() && j<current->sheetList()[i]->voiceList().size(); j++) {
+			voiceMap[current->sheetList()[i]->voiceList()[j]] = newDocument->sheetList()[i]->voiceList()[j];
 		}
 	}
 
 	QList<CAMainWin*> mainWinList = CACanorus::findMainWin( current );
-	if (newDocument->sheetCount() != current->sheetCount()) {
+	if (newDocument->sheetList().size() != current->sheetList().size()) {
 		for (int i=0; i<mainWinList.size(); i++) {
 			mainWinList[i]->setDocument( newDocument );
 		}
 		rebuildNeeded=true;
 	} else {
+		// rebuild UI and replace sheets with new sheets
+		// TODO: This should be moved to the UI module!
 		for (int i=0; i<mainWinList.size(); i++) {
-			QList<CAViewPort*> viewPortList = mainWinList[i]->viewPortList();
-			for (int j=0; j<viewPortList.size(); j++) {
-				switch (viewPortList[j]->viewPortType()) {
-					case CAViewPort::ScoreViewPort: {
-						CAScoreViewPort *sv = static_cast<CAScoreViewPort*>(viewPortList[j]);
+			QList<CAView*> viewList = mainWinList[i]->viewList();
+			for (int j=0; j<viewList.size(); j++) {
+				switch (viewList[j]->viewType()) {
+					case CAView::ScoreView: {
+						CAScoreView *sv = static_cast<CAScoreView*>(viewList[j]);
 						sv->setSheet( sheetMap[sv->sheet()] );
 
 						break;
 					}
-					case CAViewPort::SourceViewPort: {
-						CASourceViewPort *sv = static_cast<CASourceViewPort*>(viewPortList[j]);
+					case CAView::SourceView: {
+						CASourceView *sv = static_cast<CASourceView*>(viewList[j]);
 						if ( sv->voice() ) {
 							if (voiceMap.contains(sv->voice()))
 								// set the new voice
 								sv->setVoice( voiceMap[sv->voice()] );
 							else
-								// or close the viewport if not available
+								// or close the view if not available
 								delete sv;
 						}
 						if ( sv->lyricsContext() ) {
@@ -125,7 +127,7 @@ void CAUndoCommand::undoDocument( CADocument *current, CADocument *newDocument )
 								// set the new lyrics context
 								sv->setLyricsContext( static_cast<CALyricsContext*>( contextMap[sv->lyricsContext()] ) );
 							else
-								// or close the viewport if not available
+								// or close the view if not available
 								delete sv;
 						}
 						if ( sv->document() ) {

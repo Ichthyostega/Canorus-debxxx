@@ -11,27 +11,30 @@
 #include <QString>
 #include <QStack>
 
-#include "core/voice.h"
-#include "core/rest.h"
-#include "core/keysignature.h"
-#include "core/clef.h"
-#include "core/timesignature.h"
-#include "core/barline.h"
-#include "core/lyricscontext.h"
-#include "core/syllable.h"
-#include "core/playablelength.h"
-#include "core/diatonicpitch.h"
+//#include "core/muselementfactory.h"
+
+#include "score/voice.h"
+#include "score/rest.h"
+#include "score/keysignature.h"
+#include "score/clef.h"
+#include "score/timesignature.h"
+#include "score/barline.h"
+#include "score/lyricscontext.h"
+#include "score/syllable.h"
+#include "score/playablelength.h"
+#include "score/diatonicpitch.h"
 
 #include "import/import.h"
 
 class QTextStream;
 class CAMidiDevice;
 class CAMidiImportEvent;
+class CAMidiNote;
 
 class CAMidiImport : public CAImport {
 public:
 	// Constructor
-	CAMidiImport( QTextStream *in=0 );
+	CAMidiImport( CADocument *document=0, QTextStream *in=0 );
 
 	// Destructor
 	virtual ~CAMidiImport();
@@ -42,10 +45,16 @@ public:
 	// where the real work is done
 	CADocument *importDocumentImpl();
 	CASheet *importSheetImpl();
-
+	QList< QList<CAMidiNote*> > importMidiNotes();
+	
 	const QString readableStatus();
+	QList<int> midiProgramList() { return _midiProgramList; }
 
 private:
+	// Alternatives during developement
+	CASheet *importSheetImplPmidiParser(CASheet *sheet);
+	void importMidiEvents();
+
 	void initMidiImport();
 
 	static const QRegExp WHITESPACE_DELIMITERS;
@@ -58,6 +67,7 @@ private:
 		int beat;
 	};
 
+private:
 	enum CALilyPondDepth {
 		Score,
 		Layout,
@@ -68,26 +78,17 @@ private:
 	inline CAVoice *curVoice() { return _curVoice; }
 	inline void setCurVoice(CAVoice *voice) { _curVoice = voice; }
 
-	const QString parseNextElement();
-	const QString peekNextElement();
 	void addError(QString description, int lineError = 0, int charError = 0);
+
+	// the next four objects should be moved to CADiatonicPitch, doubles are in CAKeybdInput
+	CADiatonicPitch _actualKeySignature;
+	signed char _actualKeySignatureAccs[7];
+	int _actualKeyAccidentalsSum;
+	CADiatonicPitch matchPitchToKey( CAVoice* voice, int midiPitch );
 
 	//////////////////////
 	// Helper functions //
 	//////////////////////
-	CAPlayableLength playableLengthFromLilyPond( QString &playableElt, bool parse=false );
-
-	bool isNote(const QString elt);
-	CADiatonicPitch relativePitchFromLilyPond(QString &note, CADiatonicPitch prevPitch, bool parse=false);
-	bool isRest(const QString elt);
-	CARest::CARestType restTypeFromLilyPond(QString& rest, bool parse=false);
-	CAClef::CAPredefinedClefType predefinedClefTypeFromLilyPond( const QString clef );
-	int clefOffsetFromLilyPond( const QString clef );
-	CABarline::CABarlineType barlineTypeFromLilyPond(const QString bar);
-	CADiatonicKey::CAGender diatonicKeyGenderFromLilyPond(QString gender);
-	CATime timeSigFromLilyPond(QString time);
-
-	CAMusElement* findSharedElement(CAMusElement *elt);
 
 	///////////////////////////
 	// Getter/Setter methods //
@@ -107,6 +108,7 @@ private:
 	int _curLine, _curChar;
 	QList<QString> _errors;
 	QList<QString> _warnings;
+	QList<int> _midiProgramList; // list of first instruments in the channel or -1, if not defined
 
 	//inline CAVoice *templateVoice() { return _templateVoice; }
 	//CAVoice *_templateVoice; // used when importing voice to set the staff etc.
@@ -114,33 +116,27 @@ private:
 	//////////////////////
 	// Helper functions //
 	//////////////////////
-	int getVariableLength(QByteArray *x );
-	QByteArray getHead(QByteArray *x);
-	int getByte(QByteArray *x);
-	int getWord16(QByteArray *x);
-	int getWord24(QByteArray *x);
-	int getWord32(QByteArray *x);
-	QByteArray getString(QByteArray *x, int len);
-	void printQByteArray( QByteArray x );	// debugging only
-	int _dataIndex;
-	int _nextTrackIndex;
-	bool _parseError;
-	void noteOn( bool on, int channel, int pitch, int velocity, int time );
-
-	enum smtpOffsComponents {
-		hr, min, se, fr, ff, next
-	};
-	int _smtpOffset[next];
-	int _microSecondsPerMidiQuarternote;
 
 	CADocument *_document;
 	QVector<QList<QList<CAMidiImportEvent*>*>*> _allChannelsEvents;
 	QList<CAMidiImportEvent*> _eventsX;
-	void combineMidiFileEvents();
-	void quantizeMidiFileEvents();
-	void exportNonChordsToOtherVoices();
-	void writeMidiFileEventsToScore( CASheet *sheet );
-	void writeMidiChannelEventsToVoice( int channel, CAStaff *staff, CAVoice *voice );
+	void writeMidiFileEventsToScore_New( CASheet *sheet );
+	void writeMidiChannelEventsToVoice_New( int channel, int voiceIndex, CAStaff *staff, CAVoice *voice );
+	QVector<int> _allChannelsMediumPitch;
+	QVector<CAClef*> _allChannelsClef;
+	QVector<CAKeySignature*> _allChannelsKeySignatures;
+	QVector<CAMidiImportEvent*> _allChannelsTimeSignatures;
+
+	// When voices are built these functions are used to create or determine the current clef/signature
+	int _actualClefIndex;
+	CAMusElement* getOrCreateClef( int time, int voiceIndex, CAStaff *staff, CAVoice *voice );
+	int _actualKeySignatureIndex;
+	int getNextKeySignatureTime();
+	CAMusElement* getOrCreateKeySignature( int time, int voiceIndex, CAStaff *staff, CAVoice *voice );
+	int _actualTimeSignatureIndex;
+	CAMusElement* getOrCreateTimeSignature( int time, int voiceIndex, CAStaff *staff, CAVoice *voice );
+	int _numberOfAllVoices;
+	void fixAccidentals( CASheet *s );
 };
 
 #endif /* MIDIIMPORT_H_ */

@@ -11,8 +11,8 @@
 #include <QList>
 #include <QSet>
 
-#include "core/interval.h"
-#include "core/diatonickey.h"
+#include "score/interval.h"
+#include "score/diatonickey.h"
 
 class CAMusElement;
 class CASheet;
@@ -31,6 +31,7 @@ public:
 	void transposeBySemitones( int semitones );
 	void transposeByInterval( CAInterval );
 	void transposeByKeySig( CADiatonicKey from, CADiatonicKey to, int direction );
+	void reinterpretAccidentals( int type );
 
 	void addSheet( CASheet *s );
 	void addContext( CAContext *context );

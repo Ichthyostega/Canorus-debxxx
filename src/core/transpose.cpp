@@ -7,15 +7,15 @@
 
 #include "core/transpose.h"
 
-#include "core/staff.h"
-#include "core/functionmarkcontext.h"
-#include "core/voice.h"
-#include "core/sheet.h"
-#include "core/muselement.h"
-#include "core/keysignature.h"
-#include "core/functionmark.h"
-#include "core/note.h"
-#include "core/diatonicpitch.h"
+#include "score/staff.h"
+#include "score/functionmarkcontext.h"
+#include "score/voice.h"
+#include "score/sheet.h"
+#include "score/muselement.h"
+#include "score/keysignature.h"
+#include "score/functionmark.h"
+#include "score/note.h"
+#include "score/diatonicpitch.h"
 
 /*!
 	\class CATranspose
@@ -28,8 +28,8 @@
 	1) Create a CATranspose class
 	2) Pass the music elements you want to transpose in the constructor or by calling
 	   addMusElement() or addContext().
-	3) Transpose the elements by calling transposeByKeySig(), transposeByInterval() or
-	   transposeBySemitones()
+	3) Transpose the elements by calling transposeByKeySig(), transposeByInterval(),
+	   transposeBySemitones() or reinterpretAccidentals().
 
 	\sa CAInterval::fromSemitones()
  */
@@ -58,7 +58,7 @@ CATranspose::~CATranspose() {
 }
 
 void CATranspose::addSheet( CASheet *s ) {
-	for (int i=0; i<s->contextCount(); i++) {
+	for (int i=0; i<s->contextList().size(); i++) {
 		addContext( s->contextList()[i] );
 	}
 }
@@ -67,7 +67,7 @@ void CATranspose::addContext( CAContext *context ) {
 	switch ( context->contextType() ) {
 	case CAContext::Staff: {
 		CAStaff *staff = static_cast<CAStaff*>(context);
-		for ( int j=0; j<staff->voiceCount(); j++) {
+		for ( int j=0; j<staff->voiceList().size(); j++) {
 			_elements.unite( QSet<CAMusElement*>::fromList( staff->voiceList()[j]->musElementList() ) );
 		}
 		break;
@@ -126,6 +126,46 @@ void CATranspose::transposeByInterval( CAInterval interval ) {
 		case CAMusElement::FunctionMark:
 			static_cast<CAFunctionMark*>(elt)->setKey( static_cast<CAFunctionMark*>(elt)->key() + interval );
 			break;
+		}
+	}
+}
+
+/*!
+	Changes note accidentals dependent on \a type:
+	1) If type==1, sharps -> flats
+	2) If type==-1, flats -> sharps
+	3) if type==0, invert
+
+	This function also changes Key signatures dependent on \a type, if their
+	number of accidentals is greater or equal than 5 or lesser or equal than -5.
+*/
+void CATranspose::reinterpretAccidentals( int type ) {
+	foreach ( CAMusElement *elt, _elements ) {
+		switch ( elt->musElementType() ) {
+		case CAMusElement::Note: {
+			CANote *note = static_cast<CANote*>(elt);
+			CADiatonicPitch newPitch = static_cast<CANote*>(elt)->diatonicPitch();
+			if ( type >= 0 && note->diatonicPitch().accs() > 0 ) {
+				newPitch = static_cast<CANote*>(elt)->diatonicPitch() + CAInterval(-2, 2);
+			} else
+			if ( type <= 0 && note->diatonicPitch().accs() < 0 ) {
+				newPitch = static_cast<CANote*>(elt)->diatonicPitch() - CAInterval(-2, 2);
+			}
+			note->setDiatonicPitch( newPitch );
+			break;
+		}
+		case CAMusElement::KeySignature: {
+			CAKeySignature *keySig = static_cast<CAKeySignature*>(elt);
+			CADiatonicKey newDiatonicKey = keySig->diatonicKey();
+			if ( type >= 0 && keySig->diatonicKey().numberOfAccs() >= 5 ) {
+				newDiatonicKey = CADiatonicKey(keySig->diatonicKey().diatonicPitch()+CAInterval(-2,2), keySig->diatonicKey().gender() );
+			} else
+			if ( type <= 0 && keySig->diatonicKey().numberOfAccs() <= -5 ) {
+				newDiatonicKey = CADiatonicKey(keySig->diatonicKey().diatonicPitch()-CAInterval(-2,2), keySig->diatonicKey().gender() );
+			}
+			keySig->setDiatonicKey( newDiatonicKey );
+			break;
+		}
 		}
 	}
 }

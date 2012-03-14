@@ -12,38 +12,38 @@
 
 #include "import/canorusmlimport.h"
 
-#include "core/document.h"
-#include "core/sheet.h"
-#include "core/context.h"
-#include "core/staff.h"
-#include "core/voice.h"
-#include "core/playable.h"
-#include "core/note.h"
-#include "core/rest.h"
-#include "core/clef.h"
-#include "core/muselement.h"
-#include "core/keysignature.h"
-#include "core/timesignature.h"
-#include "core/barline.h"
+#include "score/document.h"
+#include "score/sheet.h"
+#include "score/context.h"
+#include "score/staff.h"
+#include "score/voice.h"
+#include "score/playable.h"
+#include "score/note.h"
+#include "score/rest.h"
+#include "score/clef.h"
+#include "score/muselement.h"
+#include "score/keysignature.h"
+#include "score/timesignature.h"
+#include "score/barline.h"
 
-#include "core/mark.h"
-#include "core/text.h"
-#include "core/tempo.h"
-#include "core/bookmark.h"
-#include "core/articulation.h"
-#include "core/crescendo.h"
-#include "core/instrumentchange.h"
-#include "core/dynamic.h"
-#include "core/ritardando.h"
-#include "core/fermata.h"
-#include "core/repeatmark.h"
-#include "core/fingering.h"
+#include "score/mark.h"
+#include "score/text.h"
+#include "score/tempo.h"
+#include "score/bookmark.h"
+#include "score/articulation.h"
+#include "score/crescendo.h"
+#include "score/instrumentchange.h"
+#include "score/dynamic.h"
+#include "score/ritardando.h"
+#include "score/fermata.h"
+#include "score/repeatmark.h"
+#include "score/fingering.h"
 
-#include "core/lyricscontext.h"
-#include "core/syllable.h"
+#include "score/lyricscontext.h"
+#include "score/syllable.h"
 
-#include "core/functionmarkcontext.h"
-#include "core/functionmark.h"
+#include "score/functionmarkcontext.h"
+#include "score/functionmark.h"
 
 CAMusicXmlImport::CAMusicXmlImport( QTextStream *stream )
  : CAImport(stream), QXmlStreamReader() {
@@ -60,11 +60,12 @@ CAMusicXmlImport::~CAMusicXmlImport() {
 
 void CAMusicXmlImport::initMusicXmlImport() {
 	_document = 0;
+	_tempoBpm = -1;
 }
 
 /*!
 	Opens a MusicXML source \a in and creates a document out of it.
-	CAMusicXmlImport uses SAX model for reading.
+	CAMusicXmlImport uses QXmlStreamReader and SAX model for reading.
 */
 CADocument* CAMusicXmlImport::importDocumentImpl() {
 	QXmlStreamReader::setDevice( stream()->device() );
@@ -127,6 +128,8 @@ void CAMusicXmlImport::readScorePartwise() {
 		if (tokenType()==StartElement) {
 			if (name()=="work") {
 				readWork();
+			} else if (name()=="movement-title") {
+				_document->setTitle( readElementText() );
 			} else if (name()=="identification") {
 				readIdentification();
 			} else if (name()=="defaults") {
@@ -144,10 +147,10 @@ void CAMusicXmlImport::readScorePartwise() {
 		for (int j=0; j<_partMapStaff[_partMapStaff.keys()[i]].size(); j++) {
 			// go through all staffs with this partId
 			CAStaff *s = _partMapStaff[_partMapStaff.keys()[i]][j];
-			for (int k=0; k<s->voiceCount(); k++) {
+			for (int k=0; k<s->voiceList().size(); k++) {
 				// go through all voices in this staff
-				s->voiceAt(k)->setMidiProgram( _midiProgram[_partMapStaff.keys()[i]] );
-				s->voiceAt(k)->setMidiChannel( _midiChannel[_partMapStaff.keys()[i]] );
+				s->voiceList()[k]->setMidiProgram( _midiProgram[_partMapStaff.keys()[i]]-1 );
+				s->voiceList()[k]->setMidiChannel( _midiChannel[_partMapStaff.keys()[i]]-1 );
 			}
 		}
 	}
@@ -238,6 +241,7 @@ void CAMusicXmlImport::readPart() {
 
 	QString partId = attributes().value("id").toString();
 	_partMapStaff[ partId ] = QList<CAStaff*>();
+	addStavesIfNeeded( partId, 1 );
 	_partMapClef[ partId ] = QHash<int, CAClef*>();
 	_partMapKeySig[ partId ] = QHash<int, CAKeySignature*>();
 	_partMapTimeSig[ partId ] = QHash<int, CATimeSignature*>();
@@ -266,6 +270,10 @@ void CAMusicXmlImport::readMeasure( QString partId ) {
 				readNote( partId, _divisions[partId] );
 			} else if (name()=="forward") {
 				readForward( partId, _divisions[partId] );
+			} else if (name()=="direction") {
+
+			} else if (name()=="sound") {
+				readSound( partId );
 			}
 		}
 	}
@@ -274,14 +282,14 @@ void CAMusicXmlImport::readMeasure( QString partId ) {
 	for (int staffIdx=0; staffIdx<_partMapStaff[partId].size(); staffIdx++) {
 		CAStaff *staff = _partMapStaff[partId][staffIdx];
 		int lastVoice=-1;
-		for (int i=0; i<staff->voiceCount(); i++) {
-			if ( lastVoice==-1 || staff->voiceAt(lastVoice)->lastTimeEnd() < staff->voiceAt(i)->lastTimeEnd() ) {
+		for (int i=0; i<staff->voiceList().size(); i++) {
+			if ( lastVoice==-1 || staff->voiceList()[lastVoice]->lastTimeEnd() < staff->voiceList()[i]->lastTimeEnd() ) {
 				lastVoice = i;
 			}
 		}
 
 		if (lastVoice!=-1) {
-			staff->voiceAt(lastVoice)->append( new CABarline( CABarline::Single, staff, 0 ) );
+			staff->voiceList()[lastVoice]->append( new CABarline( CABarline::Single, staff, 0 ) );
 			staff->synchronizeVoices();
 		}
 	}
@@ -368,7 +376,7 @@ void CAMusicXmlImport::readAttributes( QString partId ) {
 				}
 
 				CAClef::CAPredefinedClefType t;
-				if (sign=="G") t=CAClef::Treble;
+				if (sign=="G") t=CAClef::Treble; // only treble and bass clefs are supported for now
 				else if (sign=="F") t=CAClef::Bass;
 
 				if (_partMapStaff[partId].size()>=number) {
@@ -381,21 +389,7 @@ void CAMusicXmlImport::readAttributes( QString partId ) {
 		}
 	}
 
-	for (int i=1; i<=staves && staves > _partMapStaff[partId].size(); i++) {
-		CAStaff *s = new CAStaff( tr("Staff%1").arg(_document->sheetAt(0)->staffCount()), _document->sheetAt(0) );
-		_document->sheetAt(0)->addContext(s);
-		_partMapStaff[partId].append( s );
-
-		if (_partMapKeySig[partId].contains(i)) {
-			_partMapKeySig[partId][i]->setContext( s );
-		}
-		if (_partMapTimeSig[partId].contains(i)) {
-			_partMapTimeSig[partId][i]->setContext( s );
-		}
-		if (_partMapClef[partId].contains(i)) {
-			_partMapClef[partId][i]->setContext( s );
-		}
-	}
+	addStavesIfNeeded( partId, staves );
 }
 
 void CAMusicXmlImport::readNote( QString partId, int divisions ) {
@@ -403,13 +397,21 @@ void CAMusicXmlImport::readNote( QString partId, int divisions ) {
 
 	bool isRest = false;
 	bool isPartOfChord = false;
+	bool tieStop = false;
 	int voice = 1;
 	int staff = 1;
 	CAPlayableLength length;
 	CADiatonicPitch pitch;
 	CANote::CAStemDirection stem = CANote::StemPreferred;
 	int lyricsNumber=-1;
+	bool hyphen = false;
+	bool melisma = false;
 	QString lyricsText;
+
+	if (!divisions) {
+		std::cerr << "CAMusicXmlImport::readNote()- Error: divisions is 0, setting to 8" << std::endl;
+		divisions=8;
+	}
 
 	while (!atEnd() && !(tokenType()==EndElement && name()=="note")) {
 		readNext();
@@ -458,41 +460,133 @@ void CAMusicXmlImport::readNote( QString partId, int divisions ) {
 					lyricsNumber = attributes().value("number").toString().toInt();
 				}
 
-				while (name()!="text") readNext();
-				lyricsText = readElementText();
+				while (!atEnd() && !(tokenType()==EndElement && name()=="lyric")) {
+					readNext();
+
+					if (tokenType()==StartElement) {
+						if (name()=="text") {
+							lyricsText = readElementText();
+						} else if (name()=="syllabic") {
+							hyphen = (readElementText()=="begin"||readElementText()=="middle");
+						} else if (name()=="extend") {
+							melisma = true;
+						}
+					}
+				}
+			} else if (name()=="tie") {
+				if ( attributes().value("type")=="stop" ) {
+					tieStop = true;
+				}
 			}
 		}
 	}
 
 	CAVoice *v = addVoiceIfNeeded( partId, staff, voice );
 
-	CAPlayable *p;
+	// grace notes are not supported yet
+	if (length.musicLength()==CAPlayableLength::Undefined) {
+		// grace notes don't have musicLength set
+		return;
+	}
+
+	CAPlayable *p=0;
 	if (!isRest) {
 		p = new CANote( pitch, length, v, 0 );
+		if (_tempoBpm!=-1) {
+			p->addMark( new CATempo( CAPlayableLength::Quarter, _tempoBpm, p ) );
+			_tempoBpm = -1;
+		}
 	} else {
 		p = new CARest( CARest::Normal, length, v, 0 );
 	}
 
 	v->append( p, isPartOfChord );
 
+	// create ties
+	if (tieStop) {
+		CANote *noteEnd = static_cast<CANote*>(p);
+		CANote *noteStart = 0;
+		CANote *prevNote = v->previousNote(p->timeStart());
+		if (prevNote) {
+			QList<CANote*> prevChord = prevNote->getChord();
+			for (int i=0; i<prevChord.size(); i++) {
+				if (static_cast<CANote*>(prevChord[i])->diatonicPitch()==noteEnd->diatonicPitch()) {
+					noteStart = static_cast<CANote*>(prevChord[i]);
+					break;
+				}
+			}
+		}
+
+		if (noteStart) {
+			CASlur *tie = new CASlur( CASlur::TieType, CASlur::SlurPreferred, v->staff(), noteStart, noteEnd );
+			noteStart->setTieStart(tie);
+			noteEnd->setTieEnd(tie);
+		}
+	}
+
+	// create lyrics
 	if (lyricsNumber!=-1) {
 		while (lyricsNumber > v->lyricsContextList().size()) {
 			v->addLyricsContext( new CALyricsContext( v->name()+tr("Lyrics"), v->lyricsContextList().size()+1, v ) );
-			_document->sheetAt(0)->insertContextAfter( v->staff(), v->lyricsContextList()[lyricsNumber-1] );
+			int idx=0;
+			if (v->lyricsContextList().size()==1) {
+				// Add the first lyrics right below the staff
+				idx = _document->sheetList()[0]->contextList().indexOf(v->staff())+1;
+			} else {
+				// Add next lyrics below the last lyrics line
+				idx = _document->sheetList()[0]->contextList().indexOf(v->lyricsContextList().last())+1;
+			}
+			_document->sheetList()[0]->insertContext( idx, v->lyricsContextList().last() );
 		}
 
-		v->lyricsContextList()[lyricsNumber-1]->addSyllable( new CASyllable(lyricsText, false, false, v->lyricsContextList()[lyricsNumber-1], p->timeStart(), p->timeLength() ) );
+		v->lyricsContextList()[lyricsNumber-1]->addSyllable( new CASyllable(lyricsText, hyphen, melisma, v->lyricsContextList()[lyricsNumber-1], p->timeStart(), p->timeLength() ) );
 	}
 }
 
+void CAMusicXmlImport::readSound( QString partId ) {
+	if (name()!="sound") return;
+
+	if ( !attributes().value("tempo").isEmpty() ) {
+		_tempoBpm = attributes().value("tempo").toString().toInt();
+	}
+}
+
+/*!
+	Assures that the given \a partId contains at least \a staves number of staves.
+	Adds new staves, if needed and assings any clefs, key signatures or time signatures in the buffer
+	to the new staff, if their number is the number of the new staff.
+*/
+void CAMusicXmlImport::addStavesIfNeeded( QString partId, int staves ) {
+	for (int i=_partMapStaff[partId].size()+1; i<=staves && staves > _partMapStaff[partId].size(); i++) {
+		CAStaff *s = new CAStaff( tr("Staff%1").arg(_document->sheetList()[0]->staffList().size()), _document->sheetList()[0] );
+		_document->sheetList()[0]->addContext(s);
+		_partMapStaff[partId].append( s );
+
+		if (_partMapKeySig[partId].contains(i)) {
+			_partMapKeySig[partId][i]->setContext( s );
+		}
+		if (_partMapTimeSig[partId].contains(i)) {
+			_partMapTimeSig[partId][i]->setContext( s );
+		}
+		if (_partMapClef[partId].contains(i)) {
+			_partMapClef[partId][i]->setContext( s );
+		}
+	}
+}
+
+/*!
+	Assures that the given \a partId and \a staff contains at least \a voice number of voices.
+	Adds new voices, if needed and adds any clefs, key signatures or time signatures in the buffer
+	to the new voice.
+*/
 CAVoice *CAMusicXmlImport::addVoiceIfNeeded( QString partId, int staff, int voice ) {
 	CAVoice *v = 0;
 	CAStaff *s = 0;
 
 	if (!_partMapVoice[partId].contains(voice)) {
 		s = _partMapStaff[partId][staff-1];
-		v = new CAVoice( tr("Voice%1").arg(s->voiceCount()), s );
-		if (!s->voiceCount()) {
+		v = new CAVoice( tr("Voice%1").arg(s->voiceList().size()), s );
+		if (!s->voiceList().size()) {
 			if (_partMapClef[partId].contains(staff)) {
 				v->append(_partMapClef[partId][staff]);
 			} else if (_partMapClef[partId].contains(1)) { // add the default clef

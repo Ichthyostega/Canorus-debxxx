@@ -5,7 +5,9 @@
 	Licensed under the GNU GENERAL PUBLIC LICENSE. See COPYING for details.
 */
 
+#include <QCoreApplication>
 #include <QVector>
+#include <sstream>
 
 #include "interface/rtmididevice.h"
 #include "rtmidi/RtMidi.h"
@@ -39,9 +41,14 @@ CARtMidiDevice::CARtMidiDevice()
 	_inOpen=false;
 	setRealTime(true);
 
+	// create midi client names which hold the current pid
+	_pid = QCoreApplication::applicationPid();
+	_midiNameOut << "Canorus Out (" << _pid << ")";
+	_midiNameIn << "Canorus In (" << _pid << ")";
+
 	try {
-		_out = new RtMidiOut();
-		_in = new RtMidiIn();
+		_out = new RtMidiOut( _midiNameOut.str() );
+		_in = new RtMidiIn( _midiNameIn.str() );
 	}
 	catch (RtError &error) {
 		error.printMessage();
@@ -156,7 +163,7 @@ CARtMidiDevice::~CARtMidiDevice() {
 /*!
 	Sends the given \a message to the midi device. \a offset is ignored because CARtMidiDevice is a realtime device.
 */
-void CARtMidiDevice::send(QVector<unsigned char> message, int offset) {
+void CARtMidiDevice::send(QVector<unsigned char> message, int time) {
 	std::vector<unsigned char> messageVector = message.toStdVector();
 	if (_outOpen)
 		_out->sendMessage(&messageVector);

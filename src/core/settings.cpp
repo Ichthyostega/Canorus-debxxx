@@ -16,13 +16,17 @@ const bool CASettings::DEFAULT_FINALE_LYRICS_BEHAVIOUR = false;
 const bool CASettings::DEFAULT_SHADOW_NOTES_IN_OTHER_STAFFS = false;
 const bool CASettings::DEFAULT_PLAY_INSERTED_NOTES = true;
 const bool CASettings::DEFAULT_AUTO_BAR = true;
+const bool CASettings::DEFAULT_SPLIT_AT_QUARTER_BOUNDARIES = false;
 
 const QDir CASettings::DEFAULT_DOCUMENTS_DIRECTORY = QDir::home();
+const QDir CASettings::DEFAULT_SHORTCUTS_DIRECTORY = QDir( QDir::homePath() + "/.config/Canorus" );
 const CAFileFormats::CAFileFormatType CASettings::DEFAULT_SAVE_FORMAT = CAFileFormats::Can;
 const int CASettings::DEFAULT_AUTO_RECOVERY_INTERVAL = 1;
 const int CASettings::DEFAULT_MAX_RECENT_DOCUMENTS = 15;
 
 #ifndef SWIGCPP
+const bool   CASettings::DEFAULT_LOCK_SCROLL_PLAYBACK = true; // scroll while playing
+const bool   CASettings::DEFAULT_ANIMATED_SCROLL = true;
 const bool   CASettings::DEFAULT_ANTIALIASING = true;
 const QColor CASettings::DEFAULT_BACKGROUND_COLOR = QColor(255, 255, 240);
 const QColor CASettings::DEFAULT_FOREGROUND_COLOR = Qt::black;
@@ -41,7 +45,7 @@ const CATypesetter::CATypesetterType CASettings::DEFAULT_TYPESETTER = CATypesett
 const QString                        CASettings::DEFAULT_TYPESETTER_LOCATION = "lilypond";
 #endif
 #ifdef Q_WS_WIN
-const QString                        CASettings::DEFAULT_TYPESETTER_LOCATION = "C:/Program files/LilyPond/usr/bin/lilypond.exe";
+const QString                        CASettings::DEFAULT_TYPESETTER_LOCATION = "C:/Program files/LilyPond/usr/bin/lilypond-windows.exe";
 #endif
 #ifdef Q_WS_MAC
 const QString                        CASettings::DEFAULT_TYPESETTER_LOCATION = "/Applications/LilyPond.app/Contents/Resources/bin/lilypond";
@@ -80,6 +84,7 @@ const bool                           CASettings::DEFAULT_USE_SYSTEM_PDF_VIEWER =
  */
 CASettings::CASettings(const QString & fileName, QObject * parent)
  : QSettings(fileName, QSettings::IniFormat, parent) {
+	 initSettings();
 }
 
 /*!
@@ -87,10 +92,19 @@ CASettings::CASettings(const QString & fileName, QObject * parent)
  */
 CASettings::CASettings( QObject * parent )
  : QSettings( defaultSettingsPath()+"/canorus.ini", QSettings::IniFormat, parent) {
+	 initSettings();
+}
+
+void CASettings::initSettings()
+{
+	_poEmptyEntry = new QAction( this );
 }
 
 CASettings::~CASettings() {
 	writeSettings();
+	if( _poEmptyEntry )
+	  delete _poEmptyEntry;
+	_poEmptyEntry = 0;
 }
 
 /*!
@@ -101,6 +115,7 @@ void CASettings::writeSettings() {
 	setValue( "editor/shadownotesinotherstaffs", shadowNotesInOtherStaffs() );
 	setValue( "editor/playinsertednotes", playInsertedNotes() );
 	setValue( "editor/autobar", autoBar() );
+	setValue( "editor/splitatquarterboundaries", splitAtQuarterBoundaries() );
 
 	setValue( "files/documentsdirectory", documentsDirectory().absolutePath() );
 	setValue( "files/defaultsaveformat", defaultSaveFormat() );
@@ -109,6 +124,8 @@ void CASettings::writeSettings() {
 #ifndef SWIGCPP
 	writeRecentDocuments();
 
+	setValue( "appearance/lockscrollplayback", lockScrollPlayback() );
+	setValue( "appearance/animatedscroll", animatedScroll() );
 	setValue( "appearance/antialiasing", antiAliasing() );
 	setValue( "appearance/backgroundcolor", backgroundColor() );
 	setValue( "appearance/foregroundcolor", foregroundColor() );
@@ -132,11 +149,14 @@ void CASettings::writeSettings() {
 
 /*!
 	Opens the settings stored in a config file and sets the local values.
-	Returns Undefined, if everything went fine or appropriate settings page, if a file or value wasn't set
-	and settings window should be shown (eg. setup the MIDI devices the first time).
+	This function is usually called on application startup to read and validate
+	various settings and show the settings window, if needed (eg. setup the MIDI
+	devices the first time).
+	
+	\return 0, if settings validated fine; -1 for playback settings errors.
 */
 int CASettings::readSettings() {
-	int settingsPage = -1;
+	int settingsPage = 0;
 
 	// Editor settings
 	if ( contains("editor/finalelyricsbehaviour") )
@@ -158,6 +178,11 @@ int CASettings::readSettings() {
 		setAutoBar( value("editor/autobar").toBool() );
 	else
 		setAutoBar( DEFAULT_AUTO_BAR );
+
+	if ( contains("editor/splitatquarterboundaries") )
+		setSplitAtQuarterBoundaries( value("editor/splitatquarterboundaries").toBool() );
+	else
+		setSplitAtQuarterBoundaries( DEFAULT_SPLIT_AT_QUARTER_BOUNDARIES );
 
 	// Saving/Loading settings
 	if ( contains("files/documentsdirectory") )
@@ -185,6 +210,16 @@ int CASettings::readSettings() {
 	readRecentDocuments();
 
 	// Appearance settings
+	if ( contains("appearance/lockscrollplayback") )
+		setLockScrollPlayback( value("appearance/lockscrollplayback").toBool() );
+	else
+		setLockScrollPlayback( DEFAULT_LOCK_SCROLL_PLAYBACK );
+
+	if ( contains("appearance/animatedscroll") )
+		setAnimatedScroll( value("appearance/animatedscroll").toBool() );
+	else
+		setAnimatedScroll( DEFAULT_ANIMATED_SCROLL );
+
 	if ( contains("appearance/antialiasing") )
 		setAntiAliasing( value("appearance/antialiasing").toBool() );
 	else
@@ -235,7 +270,7 @@ int CASettings::readSettings() {
 		setMidiInPort( value("rtmidi/midiinport").toInt() );
 	} else {
 		setMidiInPort( DEFAULT_MIDI_IN_PORT );
-		settingsPage = 3;
+		settingsPage = -1;
 	}
 
 	if ( contains("rtmidi/midioutport")
@@ -246,7 +281,7 @@ int CASettings::readSettings() {
 		setMidiOutPort( value("rtmidi/midioutport").toInt() );
 	} else {
 		setMidiOutPort( DEFAULT_MIDI_OUT_PORT );
-		settingsPage = 3;
+		settingsPage = -1;
 	}
 
 	// Printing settings
@@ -276,6 +311,12 @@ int CASettings::readSettings() {
 		setUseSystemDefaultPdfViewer( DEFAULT_USE_SYSTEM_PDF_VIEWER );
 
 	return settingsPage;
+
+	// Action / Command settings
+	if ( contains("action/shortcutsdirectory") )
+		setLatestShortcutsDirectory( value("action/shortcutsdirectory").toString() );
+	else
+		setLatestShortcutsDirectory( DEFAULT_SHORTCUTS_DIRECTORY );
 }
 
 void CASettings::setMidiInPort(int in) {
@@ -289,6 +330,83 @@ void CASettings::setMidiInPort(int in) {
 }
 
 #ifndef SWIGCPP
+
+/*!
+  Search one single action in the list of actions (-1: entry not found)
+  Returns an empty action element when the command was not found
+*/
+int CASettings::getSingleAction(QString oCommand, QAction *&poResAction)
+{
+	for (int i=0; i < _oActionList.count(); i++) {
+		poResAction = &getSingleAction(i, _oActionList);
+		if( poResAction->objectName() == oCommand )
+			return i;
+	}
+	poResAction = _poEmptyEntry;
+	return -1;
+}
+
+/*!
+ Updates an action in the action list
+ Return 'true' if the update was successfull
+ Warning: The action cannot be copied!
+*/
+bool CASettings::setSingleAction(QAction oSingleAction, int iPos)
+{
+	bool bRet = false;
+	if( iPos >= 0 && iPos < _oActionList.count() ) {
+		_oActionList[iPos] = &oSingleAction;
+		bRet = true;
+	}
+	return bRet;
+}
+
+/*!
+ Takes a complete action list as it's own
+ Manually: Removes all elements and copies every single in the own list
+ Else: According to Qt doc "assigns the other list to this list"
+ Warning: The actions themselves cannot be copied!
+*/
+void CASettings::setActionList(QList<QAction *> &oActionList)
+{
+#ifdef COPY_ACTIONLIST_ELEMS_MANUALLY
+	_oActionList.clear();
+	for (int i=0; i < oActionList.count(); i++) {
+		poResAction = &getSingleAction(i, oActionList);
+		addSingleAction(*poResAction);
+	}
+#else
+	_oActionList = oActionList;
+#endif
+}
+
+/*!
+ Adds a single action to the action list
+ Warning: The action cannot be copied!
+*/
+void CASettings::addSingleAction(QAction oSingleAction)
+{
+	_oActionList.append( &oSingleAction );
+}
+
+/*!
+ Removes a single action from the action list
+ Return 'true' when succesfull
+ Warning: The action itself cannot be deleted!
+*/
+bool CASettings::deleteSingleAction(QString oCommand)
+{
+	QAction *poResAction;
+	bool bRet = false;
+	int iPos = getSingleAction(oCommand, poResAction);
+	if( iPos >= 0 ) // Double entries should not be in the list
+	{
+		_oActionList.removeOne( poResAction );
+		bRet = true;
+	}
+	return bRet;
+}
+
 void CASettings::readRecentDocuments() {
 	for ( int i=0; contains( QString("files/recentdocument") + QString::number(i) ); i++ )
 		CACanorus::addRecentDocument( value(QString("files/recentdocument") + QString::number(i)).toString() );

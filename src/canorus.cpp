@@ -21,7 +21,7 @@
 #include "interface/rtmididevice.h"
 #include "ui/settingsdialog.h"
 #include "scripting/swigruby.h"
-#include "core/sheet.h"
+#include "score/sheet.h"
 #include "core/settings.h"
 #include "core/undo.h"
 #include "control/helpctl.h"
@@ -100,8 +100,6 @@ void CACanorus::initTranslations() {
 	if(QLocale::system().language() == QLocale::Hebrew) { // \todo add Arabic, etc.
 		static_cast<QApplication*>(QApplication::instance())->setLayoutDirection(Qt::RightToLeft);
 	}
-
-	QTextCodec::setCodecForCStrings( QTextCodec::codecForName("UTF-8") ); // set all QStrings I/O to UTF-8
 }
 
 void CACanorus::initCommonGUI() {
@@ -141,6 +139,7 @@ void CACanorus::initCommonGUI() {
 	CAMainWin::uiImportDialog->setAcceptMode( QFileDialog::AcceptOpen );
 	CAMainWin::uiImportDialog->setFilters( QStringList() << CAFileFormats::MUSICXML_FILTER );
 	CAMainWin::uiImportDialog->setFilters( CAMainWin::uiImportDialog->filters() << CAFileFormats::MIDI_FILTER );
+	// CAMainWin::uiImportDialog->setFilters( CAMainWin::uiImportDialog->filters() << CAFileFormats::LILYPOND_FILTER ); // activate when usable
 }
 
 /*!
@@ -161,7 +160,12 @@ void CACanorus::initPlayback() {
 CASettingsDialog::CASettingsPage CACanorus::initSettings() {
 	_settings = new CASettings();
 
-	return static_cast<CASettingsDialog::CASettingsPage>(_settings->readSettings());
+	switch (_settings->readSettings()) {
+	case -1:
+		return CASettingsDialog::PlaybackSettings;
+	default:
+		return CASettingsDialog::UndefinedSettings;
+	}
 }
 
 /*!
@@ -307,15 +311,15 @@ int CACanorus::mainWinCount(CADocument *doc) {
 }
 
 /*!
-	Rebuilds main windows with the given \a document and its viewports showing the given \a sheet.
-	Rebuilds all viewports if no sheet is null.
+	Rebuilds main windows with the given \a document and its views showing the given \a sheet.
+	Rebuilds all views if no sheet is null.
 
 	\sa rebuildUI(CADocument*), CAMainWin::rebuildUI()
 */
 void CACanorus::rebuildUI( CADocument *document, CASheet *sheet ) {
-	for (int i=0; i<mainWinCount(); i++)
-		if ( mainWinAt(i)->document()==document )
-			mainWinAt(i)->rebuildUI(sheet);
+	for (int i=0; i<mainWinList().size(); i++)
+		if ( mainWinList()[i]->document()==document )
+			mainWinList()[i]->rebuildUI(sheet);
 }
 
 /*!
@@ -325,11 +329,11 @@ void CACanorus::rebuildUI( CADocument *document, CASheet *sheet ) {
 	\sa rebuildUI(CADocument*, CASheet*), CAMainWin::rebuildUI()
 */
 void CACanorus::rebuildUI( CADocument *document ) {
-	for (int i=0; i<mainWinCount(); i++) {
-		if ( document && mainWinAt(i)->document()==document ) {
-			mainWinAt(i)->rebuildUI();
+	for (int i=0; i<mainWinList().size(); i++) {
+		if ( document && mainWinList()[i]->document()==document ) {
+			mainWinList()[i]->rebuildUI();
 		} else if ( !document )
-			mainWinAt(i)->rebuildUI();
+			mainWinList()[i]->rebuildUI();
 	}
 }
 
@@ -339,8 +343,8 @@ void CACanorus::rebuildUI( CADocument *document ) {
 	and the GUI should be repainted, but not rebuilt.
  */
 void CACanorus::repaintUI() {
-	for (int i=0; i<mainWinCount(); i++) {
-		mainWinAt(i)->repaint();
+	for (int i=0; i<mainWinList().size(); i++) {
+		mainWinList()[i]->repaint();
 	}
 }
 
@@ -349,9 +353,9 @@ void CACanorus::repaintUI() {
 */
 QList<CAMainWin*> CACanorus::findMainWin(CADocument *document) {
 	QList<CAMainWin*> mainWinList;
-	for (int i=0; i<mainWinCount(); i++)
-		if (mainWinAt(i)->document()==document)
-			mainWinList << mainWinAt(i);
+	for (int i=0; i<CACanorus::mainWinList().size(); i++)
+		if (CACanorus::mainWinList()[i]->document()==document)
+			mainWinList << CACanorus::mainWinList()[i];
 
 	return mainWinList;
 }
@@ -387,13 +391,16 @@ void CACanorus::connectSlotsByName(QObject *pOS, const QObject *pOR)
         Q_ASSERT(slot);
         if (slot[0] != 'o' || slot[1] != 'n' || slot[2] != '_')
             continue;
-        bool foundIt = false;
+        bool foundIt = false, foundObj = false;
+        if( list.isEmpty() )
+			qWarning("CACanorus::connectSlotsByName: Object list empty!");
         for(int j = 0; j < list.count(); ++j) {
             const QObject *co = list.at(j);
             QByteArray objName = co->objectName().toAscii();
             int len = objName.length();
             if (!len || qstrncmp(slot + 3, objName.data(), len) || slot[len+3] != '_')
                 continue;
+            foundObj = true;
             const QMetaObject *smo = co->metaObject();
             int sigIndex = smo->indexOfMethod(slot + len + 4);
             if (sigIndex < 0) { // search for compatible signals
@@ -420,7 +427,10 @@ void CACanorus::connectSlotsByName(QObject *pOS, const QObject *pOR)
             while (mo->method(i + 1).attributes() & QMetaMethod::Cloned)
                   ++i;
         } else if (!(mo->method(i).attributes() & QMetaMethod::Cloned)) {
-            qWarning("QMetaObject::connectSlotsByName: No matching signal for %s", slot);
+            if( foundObj )
+                qWarning("CACanorus::connectSlotsByName: No matching signal for %s", slot);
+            else
+                qWarning("CACanorus::connectSlotsByName: No matching object for %s", slot);
         }
     }
 }

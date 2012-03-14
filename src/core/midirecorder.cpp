@@ -7,7 +7,7 @@
 
 #include "core/midirecorder.h"
 #include "export/midiexport.h"
-#include "core/resource.h"
+#include "score/resource.h"
 #include "interface/mididevice.h"
 
 /*!
@@ -52,6 +52,9 @@ void CAMidiRecorder::startRecording( int startTime ) {
 		_timer->setInterval(10);
 		connect( _timer, SIGNAL(timeout()), this, SLOT(timerTimeout()) );
 		_timer->start();
+		// the default time signature is a 4 quarters measure
+		_midiExport->sendMetaEvent( 0, CAMidiDevice::Meta_Timesig, 4, 4, 0 );
+		_midiExport->sendMetaEvent( 0, CAMidiDevice::Meta_Tempo, 120, 0, 0 );
 	} else {
 		_paused = false;
 	}
@@ -72,6 +75,6 @@ void CAMidiRecorder::pauseRecording() {
 
 void CAMidiRecorder::onMidiInEvent( QVector<unsigned char> messages ) {
 	if (_midiExport && !_paused) {
-		_midiExport->send( messages, _curTime );
+		_midiExport->send( messages, _curTime/2 );	// needs division somewhere else ...
 	}
 }

@@ -11,6 +11,8 @@
 #include <QSettings>
 #ifndef SWIG
 #include <QColor>
+//#include "ui/singleaction.h"
+#include <QAction>
 #endif
 #include <QDir>
 #include "core/fileformats.h"
@@ -20,6 +22,7 @@ class CASettings : public QSettings {
 public:
 	CASettings( QObject * parent = 0 );
 	CASettings( const QString & fileName, QObject * parent = 0 );
+	void initSettings();
 	virtual ~CASettings();
 
 	int readSettings();
@@ -41,7 +44,10 @@ public:
 	static const bool DEFAULT_PLAY_INSERTED_NOTES;
 	inline bool autoBar() { return _autoBar; }
 	inline void setAutoBar( bool b ) { _autoBar = b; }
+	inline bool splitAtQuarterBoundaries() { return _splitAtQuarterBoundaries; }
+	inline void setSplitAtQuarterBoundaries( bool b ) { _splitAtQuarterBoundaries = b; }
 	static const bool DEFAULT_AUTO_BAR;
+	static const bool DEFAULT_SPLIT_AT_QUARTER_BOUNDARIES;
 
 	/////////////////////////////
 	// Loading/Saving settings //
@@ -63,9 +69,15 @@ public:
 	// Appearance settings //
 	/////////////////////////
 #ifndef SWIG
-	static const bool DEFAULT_ANTIALIASING;
+	inline bool lockScrollPlayback() { return _lockScrollPlayback; }
+	inline void setLockScrollPlayback( bool l ) { _lockScrollPlayback = l; }
+	static const bool DEFAULT_LOCK_SCROLL_PLAYBACK;
+	inline bool animatedScroll() { return _animatedScroll; }
+	inline void setAnimatedScroll( bool a ) { _animatedScroll = a; }
+	static const bool DEFAULT_ANIMATED_SCROLL;
 	inline bool antiAliasing() { return _antiAliasing; }
 	inline void setAntiAliasing( bool a ) { _antiAliasing = a; }
+	static const bool DEFAULT_ANTIALIASING;
 	inline QColor backgroundColor() { return _backgroundColor; }
 	inline void setBackgroundColor( QColor backgroundColor ) { _backgroundColor = backgroundColor; }
 	static const QColor DEFAULT_BACKGROUND_COLOR;
@@ -118,6 +130,29 @@ public:
 	void setUseSystemDefaultPdfViewer( bool s ) { _useSystemDefaultPdfViewer= s; }
 	static const bool DEFAULT_USE_SYSTEM_PDF_VIEWER;
 
+	///////////////////////////////
+	// Action / Command settings //
+	///////////////////////////////
+	inline QDir latestShortcutsDirectory() { return _latestShortcutsDirectory; }
+	inline void setLatestShortcutsDirectory( QDir d ) { _latestShortcutsDirectory = d; }
+	static const QDir DEFAULT_SHORTCUTS_DIRECTORY;
+#ifndef SWIG
+	int getSingleAction(QString oCommand, QAction *&poResAction);
+	/*!
+	  Re one single action in the list of actions
+	  Does not check for the correct position in the list to be fast!
+	 */
+	inline QAction &getSingleAction(int iPos, QList<QAction *> &oActionList) {
+		QAction *poResAction = static_cast<QAction*> (oActionList[iPos]);	
+		return *poResAction; }
+
+	bool setSingleAction(QAction oSingleAction, int iPos);
+	inline const QList<QAction*>& getActionList() { return _oActionList; }
+	void setActionList(QList<QAction *> &oActionList);
+	void addSingleAction(QAction oSingleAction);
+	bool deleteSingleAction(QString oCommand);
+#endif
+
 private:
 #ifndef SWIG
 	void writeRecentDocuments();
@@ -131,6 +166,7 @@ private:
 	bool _shadowNotesInOtherStaffs;
 	bool _playInsertedNotes;
 	bool _autoBar;
+	bool _splitAtQuarterBoundaries;
 
 	/////////////////////////////
 	// Loading/Saving settings //
@@ -144,6 +180,8 @@ private:
 	// Appearance settings //
 	/////////////////////////
 #ifndef SWIG
+	bool   _lockScrollPlayback;
+	bool   _animatedScroll;
 	bool   _antiAliasing;
 	QColor _backgroundColor;
 	QColor _foregroundColor;
@@ -167,6 +205,34 @@ private:
 	bool                           _useSystemDefaultTypesetter;
 	QString                        _pdfViewerLocation;
 	bool                           _useSystemDefaultPdfViewer;
+
+/*
+% To adjust the size of notes and fonts in points, it can be done like this:
+% #(set-global-staff-size 16.0)
+
+% Some examples to adjust the page size:
+% \paper { #(set-paper-size "a3") } letter legal
+% \paper { #(set-paper-size "a4" 'landscape) }
+% For special size, like the screen, adjustments can be done like this:
+% \paper{
+%   paper-width = 16\cm
+%   line-width = 12\cm
+%   left-margin = 2\cm
+%   top-margin = 3\cm
+%   bottom-margin = 3\cm
+%   ragged-last-bottom = ##t
+% }
+*/
+
+	/////////////////////////////
+	// Action/Command settings //
+	/////////////////////////////
+	QDir _latestShortcutsDirectory; // save location of shortcuts/midi commands
+	// @ToDo: QAction can be exported to SWIG ? Abstract interface but requires QObject
+#ifndef SWIG
+    QList<QAction *> _oActionList;
+    QAction         *_poEmptyEntry; // Entry is unused for search function
+#endif
 };
 
 #endif /* SETTINGS_H_ */

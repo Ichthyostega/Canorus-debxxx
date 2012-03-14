@@ -14,15 +14,15 @@
 #include <QVector>
 #include <QByteArray>
 
-#include "core/keysignature.h"
-#include "core/timesignature.h"
-#include "core/clef.h"
-#include "core/barline.h"
-#include "core/note.h"
-#include "core/rest.h"
-#include "core/document.h"
-#include "core/lyricscontext.h"
-#include "core/syllable.h"
+#include "score/keysignature.h"
+#include "score/timesignature.h"
+#include "score/clef.h"
+#include "score/barline.h"
+#include "score/note.h"
+#include "score/rest.h"
+#include "score/document.h"
+#include "score/lyricscontext.h"
+#include "score/syllable.h"
 
 #include "export/export.h"
 #include "interface/mididevice.h"
@@ -46,6 +46,7 @@ public:
 	void closeOutputPort() { }
 	void closeInputPort() { }
 	void send(QVector<unsigned char> message, int time);
+	void sendMetaEvent(int timeLength, int event, int a, int b, int c);
 	void writeFile(); // direct access to the writing
 
 /*
@@ -58,9 +59,11 @@ public:
 private:
 	QByteArray writeTime(int time);
 	void exportDocumentImpl(CADocument *doc);
+	void exportSheetImpl(CASheet *sheet);
 	int midiTrackCount;
 	QByteArray trackChunk;					// for the time beeing we build one big track
-	int trackTime;							// which this is the time line for
+	int timeIncrement(int time);
+	int _trackTime;							// which this is the time line for
 	QVector<QByteArray> trackChunks;		// for the future
 	QVector<int> trackTimes;
 	void printQByteArray( QByteArray x );	// for debugging only

@@ -10,11 +10,11 @@
 #include "core/undo.h"
 #include "canorus.h"
 
-#include "core/keysignature.h"
+#include "score/keysignature.h"
 #include "core/transpose.h"
-#include "core/sheet.h"
-#include "drawable/drawablekeysignature.h"
-#include "drawable/drawablemuselement.h"
+#include "score/sheet.h"
+#include "layout/drawablekeysignature.h"
+#include "layout/drawablemuselement.h"
 
 CATransposeView::CATransposeView( CAMainWin *p )
 : QDockWidget( p ) {
@@ -41,13 +41,14 @@ void CATransposeView::setupCustomUi() {
 	connect( uiByKeySig, SIGNAL(toggled(bool)), this, SLOT(updateUi(bool)) );
 	connect( uiByInterval, SIGNAL(toggled(bool)), this, SLOT(updateUi(bool)) );
 	connect( uiBySemitones, SIGNAL(toggled(bool)), this, SLOT(updateUi(bool)) );
+	connect( uiReinterpretAccidentals, SIGNAL(toggled(bool)), this, SLOT(updateUi(bool)) );
 }
 
 /*!
 	Sets the KeySig1 key signature to the key signature of the first selected note.
  */
 void CATransposeView::show() {
-	CAScoreViewPort *v = static_cast<CAMainWin*>(parent())->currentScoreViewPort();
+	CAScoreView *v = static_cast<CAMainWin*>(parent())->currentScoreView();
 
 	if (v) {
 		CAKeySignature *k = 0;
@@ -63,8 +64,8 @@ void CATransposeView::show() {
 
 		// the key signature wasn't found yet - find the first key sig in the score
 		for (int i=0; !k && i<v->sheet()->staffList().size(); i++) {
-			if ( v->sheet()->staffList()[i]->voiceCount() ) {
-				k = v->sheet()->staffList()[i]->voiceAt(0)->getKeySig( 0 );
+			if ( v->sheet()->staffList()[i]->voiceList().size() ) {
+				k = v->sheet()->staffList()[i]->voiceList()[0]->getKeySig( 0 );
 			}
 		}
 
@@ -91,6 +92,8 @@ void CATransposeView::updateUi( bool ) {
 	uiIntervalDir->setEnabled( uiByInterval->isChecked() );
 
 	uiSemitones->setEnabled( uiBySemitones->isChecked() );
+
+	uiReinterpretType->setEnabled( uiReinterpretAccidentals->isChecked() );
 }
 
 /*!
@@ -125,10 +128,10 @@ void CATransposeView::on_uiIntervalQuantity_currentIndexChanged( int newIndex ) 
 
 void CATransposeView::on_uiApply_clicked( QAbstractButton *b ) {
 	if ( dynamic_cast<CAMainWin*>(parent()) &&
-	     static_cast<CAMainWin*>(parent())->currentScoreViewPort() ) {
+	     static_cast<CAMainWin*>(parent())->currentScoreView() ) {
 		CACanorus::undo()->createUndoCommand( static_cast<CAMainWin*>(parent())->document(), tr("transposition", "undo") );
 
-		CAScoreViewPort *v = static_cast<CAMainWin*>(parent())->currentScoreViewPort();
+		CAScoreView *v = static_cast<CAMainWin*>(parent())->currentScoreView();
 		CATranspose t;
 
 		// get the music elements to transpose
@@ -155,13 +158,27 @@ void CATransposeView::on_uiApply_clicked( QAbstractButton *b ) {
 				i = CAInterval( (uiIntervalQuality->currentIndex()-1)*2,
 		                        (uiIntervalQuantity->currentIndex()+1)*(uiIntervalDir->currentIndex()?(-1):1) );
 			} else { // second, third, sixth, seventh
-				i = CAInterval( qRound(uiIntervalQuality->currentIndex()-1.5),
+				i = CAInterval( qRound((uiIntervalQuality->currentIndex()-1.5)*(4/3.0)), //simple formula to distribute 0..3 -> -2..2
 		                        (uiIntervalQuantity->currentIndex()+1)*(uiIntervalDir->currentIndex()?(-1):1) );
 			}
 			t.transposeByInterval( i );
 		} else
 		if ( uiBySemitones->isChecked() ) {
 			t.transposeBySemitones( uiSemitones->value() );
+		} else
+		if ( uiReinterpretAccidentals->isChecked() ) {
+			if (uiReinterpretType->currentIndex()==0) {
+				// sharps to flats
+				t.reinterpretAccidentals( 1 );
+			} else
+			if (uiReinterpretType->currentIndex()==1) {
+				// flats to sharps
+				t.reinterpretAccidentals( -1 );
+			} else
+			if (uiReinterpretType->currentIndex()==2) {
+				// invert
+				t.reinterpretAccidentals( 0 );
+			}
 		}
 
 		CACanorus::undo()->pushUndoCommand();

@@ -14,10 +14,10 @@
 
 #include "export/midiexport.h"
 
-#include "core/document.h"
-#include "core/sheet.h"
-#include "core/staff.h"
-#include "core/voice.h"
+#include "score/document.h"
+#include "score/sheet.h"
+#include "score/staff.h"
+#include "score/voice.h"
 #include "interface/playback.h"
 #include "interface/mididevice.h"
 
@@ -45,22 +45,80 @@ CAMidiExport::CAMidiExport( QTextStream *out )
  : CAExport(out), CAMidiDevice() {
 	_midiDeviceType = MidiExportDevice;
 	setRealTime(false);
-	trackTime = 0;
+	_trackTime = 0;
+}
+
+/*!
+	Compute the time offset for a new event and update the current track time.
+*/
+int CAMidiExport::timeIncrement( int time )
+{
+	int offset = 0;
+	if ( time > _trackTime ) {
+		offset = time-_trackTime;
+	}
+	_trackTime = time;
+	return offset;
 }
 
 void CAMidiExport::send(QVector<unsigned char> message, int time)
 {
-	int offset = 0;
-	if ( time > trackTime ) {
-		offset = time-trackTime;
-		trackTime = time;
-	}
-	if ( message.size() ) trackChunk.append( writeTime( offset ));
+	if ( message.size() ) trackChunk.append( writeTime( timeIncrement( time )));
 	char q;
 	for (int i=0; i< message.size(); i++ ) {
 		q = message[i];
 		trackChunk.append(q);
 	}
+	for (int i=0; i< message.size(); i++ ) {
+		q = message[i];
+	}
+}
+
+void CAMidiExport::sendMetaEvent(int time, int event, int a, int b, int c )
+{
+	// We don't do a time check on time, and we compute
+	// only the time increment when we really send an event out.
+	QByteArray tc;
+	if (event == CAMidiDevice::Meta_Keysig ) {
+		tc.append(writeTime(timeIncrement(time)));
+		tc.append(CAMidiDevice::Midi_Ctl_Event);
+		tc.append(event);
+		tc.append(variableLengthValue( 2 ));
+		tc.append(a);
+		tc.append(b);
+		trackChunk.append(tc);
+	} else
+	if (event == CAMidiDevice::Meta_Timesig ) {
+		int lbBeat=0;
+		for (; lbBeat<5; lbBeat++ ) {	// natural logarithm, smallest is 128th
+			if (1<<lbBeat >= b) break;
+		}
+		tc.append(writeTime(timeIncrement(time)));
+		tc.append(CAMidiDevice::Midi_Ctl_Event);
+		tc.append(event);
+		tc.append(variableLengthValue( 4 ));
+		tc.append(a);
+		tc.append(lbBeat);
+		tc.append(18);
+		tc.append(8);
+		trackChunk.append(tc);
+	} else
+	if (event == CAMidiDevice::Meta_Tempo ) {
+		int usPerQuarter = 60000000/a;
+		tc.append(writeTime(timeIncrement(time)));
+		tc.append(CAMidiDevice::Midi_Ctl_Event);
+		tc.append(event);
+		tc.append(variableLengthValue( 3 ));
+		char q;
+		q = char(usPerQuarter>>16);
+		tc.append(q);
+		q = char(usPerQuarter>> 8);
+		tc.append(q);
+		q = char(usPerQuarter>> 0);
+		tc.append(q);
+		trackChunk.append(tc);
+	}
+
 }
 
 // FIXME: these magic numbers should go into the midi class.
@@ -76,13 +134,6 @@ void CAMidiExport::send(QVector<unsigned char> message, int time)
 #define MIDI_CTL_PAN     0x0a
 #define MIDI_CTL_VOLUME  0x07
 #define MIDI_CTL_SUSTAIN 0x40
-
-// FIXME: is not yet fixed and synchronized to midi playback and import:
-#define MULTIPLICATOR       (1*2*3*4*5*6*7) /* enable x-tuplets with x in {3,4,5,6,7,8,9,10} */
-#define QUARTER_LENGTH      ( 32*MULTIPLICATOR)
-#define TICKS_PER_QUARTER (3*128)
-
-#define MY2MIDITIME(t) ((unsigned int) ((((double) t) * (double) (TICKS_PER_QUARTER)) / ((double) (QUARTER_LENGTH))))
 
 
 QByteArray CAMidiExport::word16(int x) {
@@ -147,32 +198,6 @@ QByteArray CAMidiExport::writeTime(int time) {
 }
 
 
-QByteArray CAMidiExport::keySignature(void) {
-	QByteArray tc;
-	tc.append(writeTime(0));
-	tc.append(MIDI_CTL_EVENT);
-	tc.append(META_KEYSIG);
-	tc.append(variableLengthValue( 2 ));
-	tc.append((char)0);		// number of sharps, negative: number of flats positive
-	tc.append((char)0);		// 0: major 1: minor
-	return tc;
-}
-
-
-QByteArray CAMidiExport::timeSignature(void) {
-	QByteArray tc;
-	tc.append(writeTime(0));
-	tc.append(MIDI_CTL_EVENT);
-	tc.append(META_TIMESIG);
-	tc.append(variableLengthValue( 4 ));
-	tc.append(4);			// FIXME: this is just a fixed filled in numbers
-	tc.append(2);
-	tc.append(1);
-	tc.append(8);
-	return tc;
-}
-
-
 QByteArray CAMidiExport::trackEnd(void) {
 	QByteArray tc;
 	tc.append(writeTime(0));
@@ -198,7 +223,7 @@ QByteArray CAMidiExport::textEvent(int time, QString s) {
 */
 void CAMidiExport::exportDocumentImpl(CADocument *doc)
 {
-	if ( doc->sheetCount() < 1 ) {
+	if ( doc->sheetList().size() < 1 ) {
 		//TODO: no sheets, raise an error
 		return;
 	}
@@ -207,7 +232,7 @@ void CAMidiExport::exportDocumentImpl(CADocument *doc)
 	// In the header chunk we need to know the count of tracks.
 	// We export every non empty voice as separate track.
 	// For now we export only the first sheet.
-	CASheet *sheet = doc->sheetAt( 0 );
+	CASheet *sheet = doc->sheetList()[ 0 ];
 	setCurSheet( sheet );
 	trackChunk.clear();
 
@@ -217,13 +242,56 @@ void CAMidiExport::exportDocumentImpl(CADocument *doc)
 	_playback->run();
 
 	int count = 0;
-	for (int c = 0; c < doc->sheetAt(0)->contextCount(); ++c ) {
-		switch (sheet->contextAt(c)->contextType()) {
+	for (int c = 0; c < doc->sheetList()[0]->contextList().size(); ++c ) {
+		switch (sheet->contextList()[c]->contextType()) {
 			case CAContext::Staff:
-				// exportStaffVoices( static_cast<CAStaff*>(sheet->contextAt( c )) );
-				CAStaff *staff = static_cast<CAStaff*>(sheet->contextAt( c ));
-				for ( int v = 0; v < staff->voiceCount(); ++v ) {
-					setCurVoice( staff->voiceAt( v ) );
+				// exportStaffVoices( static_cast<CAStaff*>(sheet->contextList()[c]) );
+				CAStaff *staff = static_cast<CAStaff*>(sheet->contextList()[c]);
+				for ( int v = 0; v < staff->voiceList().size(); ++v ) {
+					setCurVoice( staff->voiceList()[v] );
+					count++;
+					//std::cout << "Hallo  " << c << " " << v << "\n" << std::endl;
+				}
+		}
+	}
+
+	writeFile();
+}
+
+
+/*!
+	Exports the current document to Lilypond syntax as a complete .ly file.
+*/
+void CAMidiExport::exportSheetImpl(CASheet *sheet)
+{
+/*
+	if ( doc->sheetList().size() < 1 ) {
+		//TODO: no sheets, raise an error
+		return;
+	}
+
+
+	// In the header chunk we need to know the count of tracks.
+	// We export every non empty voice as separate track.
+	// For now we export only the first sheet.
+	CASheet *sheet = doc->sheetList()[ 0 ];
+*/
+	setCurSheet( sheet );
+	trackChunk.clear();
+
+	// Let's playback this sheet and dump that into a file,
+	// and for this we have our own midi driver.
+	CAPlayback *_playback = new CAPlayback(sheet, this );
+	_playback->run();
+
+	int count = 0;
+	for (int c = 0; c < sheet->contextList().size(); ++c ) {
+		switch (sheet->contextList()[c]->contextType()) {
+			case CAContext::Staff:
+				// exportStaffVoices( static_cast<CAStaff*>(sheet->contextList()[c]) );
+				CAStaff *staff = static_cast<CAStaff*>(sheet->contextList()[c]);
+				for ( int v = 0; v < staff->voiceList().size(); ++v ) {
+					setCurVoice( staff->voiceList()[v] );
 					count++;
 					//std::cout << "Hallo  " << c << " " << v << "\n" << std::endl;
 				}
@@ -237,15 +305,14 @@ void CAMidiExport::writeFile() {
 	// Header Chunk
 
 	// A midi file here is 8-Bit Ascii, so we need no coding translation,
-	// and this seems to switch it off, but I think there should be a null codec:   FIXME  !!
+	// and this seems to switch it off, but I think there should be a null codec, but obviously Qt doesn't have one.
 	(*stream()).setCodec("Latin-1");
 
 	QByteArray headerChunk;
 	headerChunk.append("MThd....");		// header and space for length
 	headerChunk.append(word16( 1 ));	// Midi-Format version
 	headerChunk.append(word16( 2 ));	// number of tracks, a control track and a music track for a trying out ...
-//	headerChunk.append(word16( 384 ));	// time division, should be TICKS_PER_QUARTER
-	headerChunk.append(word16( 512 ));  // time division 512 seems to work fine for us. Dunno why? -Matevz
+	headerChunk.append(word16( CAPlayableLength::playableLengthToTimeLength( CAPlayableLength::Quarter )));	// time division ticks per quarter
 	setChunkLength( &headerChunk );
 	out() << headerChunk;
 
@@ -253,7 +320,7 @@ void CAMidiExport::writeFile() {
 	QByteArray controlTrackChunk;
 	controlTrackChunk.append( "MTrk...." );
 	controlTrackChunk.append( textEvent(0, QString("Canorus Version ") + CANORUS_VERSION + " generated. "));
-	controlTrackChunk.append( textEvent(0, "Timebase and some midi controls not yet implemented."));
+	controlTrackChunk.append( textEvent(0, "It's still a work in progress."));
 	controlTrackChunk.append( trackEnd());
 	setChunkLength( &controlTrackChunk );
 	//printQByteArray( controlTrackChunk );
@@ -261,8 +328,6 @@ void CAMidiExport::writeFile() {
 
 	// trackChunk is already filled with midi data,
 	// let's add chunk header, in reverse, ...
-	trackChunk.prepend(keySignature());
-	trackChunk.prepend(timeSignature());
 	trackChunk.prepend("MTrk....");
 	// ... and add the tail:
 	trackChunk.append(trackEnd());
