@@ -1,7 +1,15 @@
 #!/usr/bin/make -f
 
+# Enable verbose builds to be able to spot missing hardening flags
+export VERBOSE=1
+
 # Use all hardening features
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# CMake doesn't use CPPFLAGS, pass them to CFLAGS/CXXFLAGS to enable the
+# missing (hardening) flags.
+export DEB_CFLAGS_MAINT_APPEND   = $(shell dpkg-buildflags --get CPPFLAGS)
+export DEB_CXXFLAGS_MAINT_APPEND = $(shell dpkg-buildflags --get CPPFLAGS)
 
 %:
 	dh $@
