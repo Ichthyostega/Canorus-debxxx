@@ -8,7 +8,7 @@ Remove the translation template from sources.
  1 files changed, 6 insertions(+), 0 deletions(-)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index 77d8074..531f254 100644
+index 60de4b8..de452ae 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
 @@ -457,6 +457,12 @@ SET( Canorus_Examples "../examples" )

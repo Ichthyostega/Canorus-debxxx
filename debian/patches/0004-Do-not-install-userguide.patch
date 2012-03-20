@@ -8,7 +8,7 @@ Do not install userguide, this code does not honor $(DESTDIR)
  1 files changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index c565689..d37faaa 100644
+index 2a58c7f..d0eaa66 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
 @@ -705,10 +705,10 @@ INSTALL(FILES ${Canorus_Translation_Bins} DESTINATION "${CMAKE_INSTALL_PREFIX}/$

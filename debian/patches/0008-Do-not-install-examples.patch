@@ -8,7 +8,7 @@ Examples are covered by debhelper
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index 9092a8f..4276932 100644
+index c789d45..0a01238 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
 @@ -710,7 +710,7 @@ INSTALL(FILES ${Canorus_Fonts} DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_IN

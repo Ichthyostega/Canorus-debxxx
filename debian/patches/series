@@ -6,3 +6,4 @@
 0006-Add-lz-and-lpthread-to-linker-flags.patch
 0007-Do-not-update-translation-files.patch
 0008-Do-not-install-examples.patch
+0009-Compile-with-O2.patch

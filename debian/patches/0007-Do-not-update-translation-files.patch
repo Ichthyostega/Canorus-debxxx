@@ -9,7 +9,7 @@ the resulting diff will be huge.
  1 files changed, 6 insertions(+), 6 deletions(-)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index 2d15029..9092a8f 100644
+index 8e766ae..c789d45 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
 @@ -663,12 +663,12 @@ ENDIF(MINGW)

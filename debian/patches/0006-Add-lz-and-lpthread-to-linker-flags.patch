@@ -12,7 +12,7 @@ Thanks: Ilya Barygin <barygin@gmail.com>
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index d37faaa..2d15029 100644
+index d0eaa66..8e766ae 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
 @@ -620,7 +620,7 @@ ENDIF(USE_PYTHON)
