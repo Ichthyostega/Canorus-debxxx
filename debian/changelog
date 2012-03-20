@@ -1,3 +1,13 @@
+canorus (0.7+dfsg+svn1256-2) unstable; urgency=low
+
+  * Pass CPPFLAGS to CFLAGS/CXXFLAGS. CMake does not use CPPFLAGS, so
+    this is needed to enable the missing hardening flags.
+    Thanks to Simon Ruderich <simon@ruderich.org> (Closes: #664168)
+  * Compile with -O2 to use -D_FORTIFY_SOURCE=2.
+    Thanks to Simon Ruderich <simon@ruderich.org>
+
+ -- Tobias Quathamer <toddy@debian.org>  Tue, 20 Mar 2012 10:44:32 +0100
+
 canorus (0.7+dfsg+svn1256-1) unstable; urgency=low
 
   * Imported Upstream version 0.7+dfsg+svn1256
