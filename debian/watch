@@ -1,2 +1,3 @@
-# Empty watch file, there's currently no download location available.
-# The tarball used for this release has been created from an svn checkout.
+version=3
+opts="uversionmangle=s/([a-z])/~$1/,dversionmangle=s/\+dfsg//" \
+http://sf.net/canorus/canorus-(.*)\.tar\.bz2
