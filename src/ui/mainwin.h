@@ -115,11 +115,7 @@ public:
 		else return 0;
 	}
 
-	inline CASheet *currentSheet() {
-		CAScoreView *v = currentScoreView();
-		if (v) return v->sheet();
-		else return 0;
-	}
+	CASheet *currentSheet();
 
 	inline CAStaff *currentStaff() {
 		CAContext *context = currentContext();
@@ -380,6 +376,7 @@ private:
 	inline bool stopPlayback() {
 			if(_playback && _playback->isRunning())
 				_playback->stopNow();
+			return true;
 		}
 
 	bool handleUnsavedChanges();

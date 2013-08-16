@@ -72,11 +72,15 @@ CADrawableNote::CADrawableNote(CANote *n, CADrawableContext *drawableContext, do
 		setWidth( 18 );
 		setHeight( 8 );
 		break;
+	case CAPlayableLength::Undefined:
+		fprintf(stderr,"Warning: CADrawableNote::CADrawableNote - Unhandled Length %d\n",n->playableLength().musicLength());
+		break;
 	}
 	setYPos( y - height()/2.0 );
 	setXPos( x );
 
-	switch (n->playableLength().musicLength()) {
+	int mlength = n->playableLength().musicLength();
+	switch (mlength) {
 	case CAPlayableLength::HundredTwentyEighth:
 		/// \todo Emmentaler font doesn't have 128th, 64th flag is drawn instead! Need to somehow compose the 128th flag? -Matevz
 		_stemLength = HUNDREDTWENTYEIGHTH_STEM_LENGTH;
@@ -109,6 +113,13 @@ CADrawableNote::CADrawableNote(CANote *n, CADrawableContext *drawableContext, do
 	case CAPlayableLength::Half:
 		_stemLength = HALF_STEM_LENGTH;
 		break;
+	case CAPlayableLength::Whole:
+	case CAPlayableLength::Breve:
+	case CAPlayableLength::Undefined:
+		if(mlength < 0 /*|| mlength > HundredTwentyEighth*/) // Currently no refined check done
+			fprintf(stderr,"Warning: CADrawableNote::CADrawableNote - Unhandled length %d",mlength);
+		break;
+
 	}
 
 	_noteHeadWidth = width();

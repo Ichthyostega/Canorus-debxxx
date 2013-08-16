@@ -248,9 +248,7 @@ void CAMidiImport::importMidiEvents() {
 			for (voiceIndex=0; !leftOverNote && voiceIndex<_allChannelsEvents[pmidi_out.chan]->size();voiceIndex++) {
 
 				if (_allChannelsEvents[pmidi_out.chan]->at(voiceIndex)->size()) {
-					int tnext = _allChannelsEvents[pmidi_out.chan]->at(voiceIndex)->back()->_nextTime;
 					if (pmidi_out.time < _allChannelsEvents[pmidi_out.chan]->at(voiceIndex)->back()->_nextTime &&
-						// pmidi_out.note == _allChannelsEvents[pmidi_out.chan]->at(voiceIndex)->back()->_pitch
 						_allChannelsEvents[pmidi_out.chan]->at(voiceIndex)->back()->_pitchList.indexOf( pmidi_out.note ) >= 0 ) {
 
 							_allChannelsEvents[pmidi_out.chan]->at(voiceIndex)->back()->_length =
@@ -446,12 +444,10 @@ void CAMidiImport::writeMidiFileEventsToScore_New( CASheet *sheet ) {
 			staff = new CAStaff( "", sheet, 5);
 			sheet->addContext(staff);
 		}
-		CAMusElement *musElemClef;
-		CAMusElement *musElemKeySig = 0;
-		CAMusElement *musElemTimeSig;
+		CAMusElement *musElemClef = 0;
 		for (int voiceIndex=0;voiceIndex<_allChannelsEvents[ch]->size();voiceIndex++) {
 			// voiceName = QObject::tr("Voice%1").arg( voiceNumber );
-			voice = new CAVoice( "", staff, CANote::StemNeutral, 1 );
+			voice = new CAVoice( "", staff, CANote::StemNeutral );
 			staff->addVoice( voice );
 			setCurVoice(voice);
 			voice->setMidiChannel( ch );
@@ -464,18 +460,8 @@ void CAMidiImport::writeMidiFileEventsToScore_New( CASheet *sheet ) {
 				} else {
 					musElemClef = new CAClef(CAClef::Treble, staff, 0, 0 );
 				}
-				if (pmidi_out.key == 0) {
-					CADiatonicKey dk = CADiatonicKey(
-						pmidi_out.key, pmidi_out.minor ? CADiatonicKey::Minor : CADiatonicKey::Major );
-				}
-
-				musElemTimeSig = new CATimeSignature( pmidi_out.top, pmidi_out.bottom, staff, 0 );
 			}
 			voice->append( musElemClef, false );
-			if ( musElemKeySig ) {
-				voice->append( musElemKeySig, false );
-			}
-
 			writeMidiChannelEventsToVoice_New( ch, voiceIndex, staff, voice );
 			setProgress(_numberOfAllVoices ? nImportedVoices*100/_numberOfAllVoices : 50 );;
 
@@ -516,7 +502,6 @@ CAMusElement* CAMidiImport::getOrCreateKeySignature( int time, int voiceIndex, C
 		if ( staff->keySignatureReferences().size() < _actualKeySignatureIndex+1 ) {
 			staff->addKeySignatureReference( new CAKeySignature( _allChannelsKeySignatures[_actualKeySignatureIndex]->diatonicKey(), staff, time ));
 		}
-		int jj = staff->keySignatureReferences().size();
 		return staff->keySignatureReferences()[_actualKeySignatureIndex];
 	}
 	return 0;
@@ -580,7 +565,6 @@ void CAMidiImport::writeMidiChannelEventsToVoice_New( int channel, int voiceInde
 	int time = 0;			// current time in the loop, only increasing, for tracking notes and rests
 	int length;
 	int program;
-	int tempo = 0;
 
 	_actualClefIndex = -1;	// for each voice we run down the list of time signatures of the sheet, all staffs.
 	_actualKeySignatureIndex = -1;	// for each voice we run down the list of time signatures of the sheet, all staffs.
@@ -778,6 +762,7 @@ const QString CAMidiImport::readableStatus() {
 	case 5:
 		return tr("Drawing score...");
 	}
+	return "";
 }
 
 

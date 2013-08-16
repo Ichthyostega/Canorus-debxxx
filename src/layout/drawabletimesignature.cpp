@@ -56,7 +56,7 @@ void CADrawableTimeSignature::draw(QPainter *p, CADrawSettings s) {
 	 * - 0..9: y0 is the bottom of the glyph
 	 */
 	switch (timeSignature()->timeSignatureType()) {
-		case CATimeSignature::Classical: {	//draw C or C| only, otherwise don't berak, go to Number then
+		case CATimeSignature::Classical: {	//draw C or C| only, otherwise don't break, go to Number then!
 			if ((timeSignature()->beat() == 4) && (timeSignature()->beats() == 4)) {
 				p->drawText(s.x, qRound(s.y + 0.5*height()*s.z), QString(CACanorus::fetaCodepoint("timesig.C44")));
 				break;
@@ -83,6 +83,11 @@ void CADrawableTimeSignature::draw(QPainter *p, CADrawSettings s) {
 
 			break;
 		}
+		case CATimeSignature::Baroque:
+		case CATimeSignature::Neomensural:
+		case CATimeSignature::Mensural:
+			fprintf(stderr,"Warning: CADrawableTimeSignature::draw - Unhandled type %d",timeSignature()->timeSignatureType());
+			break;
 	}
 }
 
