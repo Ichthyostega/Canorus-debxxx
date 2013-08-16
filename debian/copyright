@@ -15,7 +15,7 @@ Copyright: © 2006-2012 Matevž Jekovec
 License: GPL-2+
 
 Files: debian/*
-Copyright: © 2009-2012 Tobias Quathamer <toddy@debian.org>
+Copyright: © 2009-2013 Tobias Quathamer <toddy@debian.org>
 License: GPL-2+
 
 Files: src/fonts/*.ttf
