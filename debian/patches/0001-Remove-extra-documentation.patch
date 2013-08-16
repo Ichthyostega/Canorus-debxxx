@@ -4,8 +4,8 @@ Subject: Remove extra documentation
 
 Do not install documentation, it's handled by debhelper commands.
 ---
- CMakeLists.txt |    2 +-
- 1 files changed, 1 insertions(+), 1 deletions(-)
+ CMakeLists.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index b682492..1cd0f29 100644
@@ -18,4 +18,3 @@ index b682492..1cd0f29 100644
 -INSTALL(FILES AUTHORS DEVELOPERS COPYING NEWS README VERSION DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}")
 +# INSTALL(FILES AUTHORS DEVELOPERS COPYING NEWS README VERSION DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}")
  
--- 

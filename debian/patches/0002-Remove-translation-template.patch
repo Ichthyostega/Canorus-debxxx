@@ -4,14 +4,14 @@ Subject: Remove translation template
 
 Remove the translation template from sources.
 ---
- src/CMakeLists.txt |    6 ++++++
- 1 files changed, 6 insertions(+), 0 deletions(-)
+ src/CMakeLists.txt | 6 ++++++
+ 1 file changed, 6 insertions(+)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index 60de4b8..de452ae 100644
+index 59e1e51..23d81d4 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -457,6 +457,12 @@ SET( Canorus_Examples "../examples" )
+@@ -460,6 +460,12 @@ set_source_files_properties(${CANORUS_PYTHON_WRAP_CXX} PROPERTIES COMPILE_FLAGS
  
  # Set translation files
  FILE(GLOB Canorus_Translation_Srcs "lang/*.ts") # lang/*.ts -> Canorus_Translation_Srcs
@@ -24,4 +24,3 @@ index 60de4b8..de452ae 100644
  STRING(REGEX REPLACE "\\.ts" ".qm" Canorus_Translation_Bins "${Canorus_Translation_Srcs}") # Set Canorus_Translation_Bins to same values as Canorus_Translation_Srcs with different extensions
  
  SET(Canorus_Fonts	# Music fonts needed by Canorus
--- 

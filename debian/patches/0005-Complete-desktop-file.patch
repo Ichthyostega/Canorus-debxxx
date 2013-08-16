@@ -4,8 +4,8 @@ Subject: Complete desktop file
 
 Add some information and translation to upstream's desktop file
 ---
- canorus.desktop |    8 +++++---
- 1 files changed, 5 insertions(+), 3 deletions(-)
+ canorus.desktop | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
 
 diff --git a/canorus.desktop b/canorus.desktop
 index a392eb5..764b2c2 100644
@@ -31,4 +31,3 @@ index a392eb5..764b2c2 100644
 +Categories=Music;Audio;AudioVideoEditing;Midi;Sequencer;AudioVideo;Qt
  StartupNotify=true
  MimeType=application/x-notes
--- 
