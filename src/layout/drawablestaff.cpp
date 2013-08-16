@@ -248,6 +248,21 @@ void CADrawableStaff::addMElement(CADrawableMusElement *elt) {
 		case CADrawableMusElement::DrawableTimeSignature:
 			addTimeSignature((CADrawableTimeSignature*)elt);
 			break;
+		case CADrawableMusElement::DrawableNote:
+		case CADrawableMusElement::DrawableRest:
+		case CADrawableMusElement::DrawableMidiNote:
+		case CADrawableMusElement::DrawableBarline:
+		case CADrawableMusElement::DrawableAccidental:
+		case CADrawableMusElement::DrawableSlur:
+		case CADrawableMusElement::DrawableTuplet:
+		case CADrawableMusElement::DrawableSyllable:
+		case CADrawableMusElement::DrawableFunctionMark:
+		case CADrawableMusElement::DrawableFunctionMarkSupport:
+		case CADrawableMusElement::DrawableFiguredBassNumber:
+		case CADrawableMusElement::DrawableMark:
+			// These elements are just added to the list but not handled specifically
+			//fprintf(stderr,"Warning: CADrawableStaff::addMElement - Unhandled element %d\n",elt->drawableMusElementType());
+			break;
 	}
 
 	_drawableMusElementList << elt;
@@ -263,6 +278,20 @@ int CADrawableStaff::removeMElement(CADrawableMusElement *elt) {
 			break;
 		case CADrawableMusElement::DrawableTimeSignature:
 			removeTimeSignature((CADrawableTimeSignature*)elt);
+			break;
+		case CADrawableMusElement::DrawableNote:
+		case CADrawableMusElement::DrawableRest:
+		case CADrawableMusElement::DrawableMidiNote:
+		case CADrawableMusElement::DrawableBarline:
+		case CADrawableMusElement::DrawableAccidental:
+		case CADrawableMusElement::DrawableSlur:
+		case CADrawableMusElement::DrawableTuplet:
+		case CADrawableMusElement::DrawableSyllable:
+		case CADrawableMusElement::DrawableFunctionMark:
+		case CADrawableMusElement::DrawableFunctionMarkSupport:
+		case CADrawableMusElement::DrawableFiguredBassNumber:
+		case CADrawableMusElement::DrawableMark:
+			fprintf(stderr,"Warning: CADrawableStaff::removeMElement - Unhandled element %d",elt->drawableMusElementType());
 			break;
 	}
 

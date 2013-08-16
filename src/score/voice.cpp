@@ -34,15 +34,9 @@
 	Creates a new voice named \a name, in \a staff, \a voiceNumber and \a stemDirection of notes stems.
 	Voice number starts at 1.
 */
-CAVoice::CAVoice( const QString name, CAStaff *staff, CANote::CAStemDirection stemDirection, int voiceNumber ) {
+CAVoice::CAVoice( const QString name, CAStaff *staff, CANote::CAStemDirection stemDirection ) {
 	_staff = staff;
 	_name = name;
-
-	if ( !voiceNumber && staff ) {
-		_voiceNumber = staff->voiceList().size()+1;
-	} else {
-		_voiceNumber = voiceNumber;
-	}
 	_stemDirection = stemDirection;
 
 	_midiChannel = ((staff && staff->sheet()) ? CAMidiDevice::freeMidiChannel( staff->sheet() ) : 0);
@@ -101,7 +95,7 @@ void CAVoice::cloneVoiceProperties( CAVoice *voice ) {
 void CAVoice::clear() {
 	while ( _musElementList.size() ) {
 		// deletes an element only if it's not present in other voices or we're deleting the last voice
-		if ( _musElementList.front()->isPlayable() || staff() && staff()->voiceList().size()<2 )
+		if ( _musElementList.front()->isPlayable() || ( staff() && staff()->voiceList().size()<2 ) )
 			delete _musElementList.front(); // CAMusElement's destructor removes it from the list
 		else
 			_musElementList.removeFirst();
@@ -208,7 +202,7 @@ bool CAVoice::insert( CAMusElement *eltAfter, CAMusElement *elt, bool addToChord
 CAPlayable* CAVoice::insertInTupletAndVoiceAt( CAPlayable *reference, CAPlayable *p ) {
 	int t = reference->timeStart();
 	int rtype = static_cast<CAMusElement*>(reference)->musElementType();
-	int ptype = static_cast<CAMusElement*>(p)->musElementType();
+	//int ptype = static_cast<CAMusElement*>(p)->musElementType();
 	CATuplet* tup = reference->tuplet();
 
 	CAVoice* voice = reference->voice();
@@ -880,6 +874,7 @@ bool CAVoice::updateTimes( int idx, int length, bool signsToo ) {
 					m->setTimeStart( musElementList()[i]->timeStart() );
 			}
 		}
+	return true; // What to return ? Maybe if some music element times were actually set
 }
 
 /*!
@@ -891,6 +886,7 @@ bool CAVoice::updateTimes( int idx, int length, bool signsToo ) {
 	Returns True, if fixes were made or False otherwise.
 */
 bool CAVoice::synchronizeMusElements() {
+	bool fixesMade = false;
 	for (int i=0; i<musElementList().size(); i++) {
 		if ( musElementList()[i]->musElementType()==CAMusElement::Note &&
 		     musElementList()[i]->markList().size() &&
@@ -919,8 +915,10 @@ bool CAVoice::synchronizeMusElements() {
 
 			// move at the end of the chord
 			i += (chord.size() - chord.indexOf( static_cast<CANote*>(musElementList()[i]) ));
+			fixesMade = true;
 		}
 	}
+	return fixesMade;
 }
 
 /*!
@@ -1117,13 +1115,6 @@ QList<CAMusElement*> CAVoice::getPreviousClef(int startTime) {
 	\fn void CAVoice::setStemDirection(CANote::CAStemDirection direction)
 
 	Sets the stem direction and update slur directions in all the notes in the voice.
-*/
-
-/*!
-	\var CAVoice::_voiceNumber
-	Preferred direction of stems for the notes inside the voice. This should be Neutral, if the voice is alone, Up, if the voice is the first voice, Down, if not. Preferred is not used here.
-
-	\sa CANote::CAStemDirection
 */
 
 /*!
