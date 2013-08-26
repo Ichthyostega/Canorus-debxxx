@@ -1,3 +1,17 @@
+canorus (0.7.1~rc1+dfsg-1) unstable; urgency=low
+
+  * Imported Upstream version 0.7.1~rc1+dfsg.
+    This fixes a crash when saving a document. Closes: #679297
+  * Update get-orig-source target in debian/rules
+  * Refresh patches to apply cleanly
+  * New patch to initialize undefined variables
+  * Add new key "Keywords" to .desktop file
+  * Update Standards-Version to 3.9.4, no changes needed
+  * Update debian/copyright
+  * Change watch file to look for upstream tarballs again
+
+ -- Tobias Quathamer <toddy@debian.org>  Mon, 26 Aug 2013 12:26:58 +0200
+
 canorus (0.7+dfsg+svn1256-2) unstable; urgency=low
 
   * Pass CPPFLAGS to CFLAGS/CXXFLAGS. CMake does not use CPPFLAGS, so
