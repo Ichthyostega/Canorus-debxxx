@@ -7,3 +7,4 @@
 0007-Do-not-update-translation-files.patch
 0008-Do-not-install-examples.patch
 0009-Compile-with-O2.patch
+0010-Fix-uninitialized-variables.patch
