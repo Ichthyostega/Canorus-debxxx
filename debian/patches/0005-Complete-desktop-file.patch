@@ -4,14 +4,14 @@ Subject: Complete desktop file
 
 Add some information and translation to upstream's desktop file
 ---
- canorus.desktop | 8 +++++---
- 1 file changed, 5 insertions(+), 3 deletions(-)
+ canorus.desktop | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
 
 diff --git a/canorus.desktop b/canorus.desktop
-index a392eb5..764b2c2 100644
+index a392eb5..61012c8 100644
 --- a/canorus.desktop
 +++ b/canorus.desktop
-@@ -1,14 +1,16 @@
+@@ -1,14 +1,18 @@
  [Desktop Entry]
 -Encoding=UTF-8
 +Version=1.0
@@ -22,6 +22,8 @@ index a392eb5..764b2c2 100644
  Comment=A free next-generation cross-platform music score editor!
 +Comment[de]=Ein freies, plattformübergreifendes Notensatzprogramm der nächsten Generation!
  Comment[sl]=Prost program za pisanje not naslednje generacije!
++Keywords=music;score;editor;midi;audio;sequencer;
++Keywords[de]=Musik;Notensatz;Editor;Midi;Audio;Sequenzer;
  Exec=canorus
 -Icon=canorus
 +Icon=/usr/share/canorus/images/clogosm.png
