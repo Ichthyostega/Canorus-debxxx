@@ -27,6 +27,7 @@
 #include "layout/drawablestaff.h"
 #include "layout/drawablenote.h"
 #include "layout/drawableaccidental.h"
+#include "layout/drawablebarline.h"
 
 #include "layout/layoutengine.h"
 #include "score/document.h"
@@ -46,6 +47,7 @@
 
 const int CAScoreView::RIGHT_EXTRA_SPACE = 100;	// Gives some space after the music so you're able to insert music elements after the last element
 const int CAScoreView::BOTTOM_EXTRA_SPACE = 30; // Gives some space after the music so you're able to insert new contexts below the last context
+const int CAScoreView::RULER_HEIGHT = 15;
 const int CAScoreView::ANIMATION_STEPS = 7;
 
 /*!
@@ -248,6 +250,7 @@ CAScoreView *CAScoreView::clone(QWidget *parent) {
 
 void CAScoreView::addMElement(CADrawableMusElement *elt, bool select) {
 	_drawableMList.addElement(elt);
+	_mapDrawable.insertMulti(elt->musElement(), elt);
 	if (select) {
 		_selection.clear();
 		addToSelection(elt);
@@ -262,6 +265,7 @@ void CAScoreView::addMElement(CADrawableMusElement *elt, bool select) {
 */
 void CAScoreView::addCElement(CADrawableContext *elt, bool select) {
 	_drawableCList.addElement(elt);
+	_mapDrawable.insertMulti(elt->context(), elt);
 
 	if (select)
 		setCurrentContext(elt);
@@ -286,12 +290,13 @@ CADrawableContext *CAScoreView::selectContext(CAContext *context) {
 		setCurrentContext(0);
 		return 0;
 	}
-
-	for (int i=0; i<_drawableCList.size(); i++) {
-		CAContext *c = ((CADrawableContext*)_drawableCList.at(i))->context();
+	
+	QList<CADrawableContext*> drawableContexts = _drawableCList.list();
+	for (int i=0; i<drawableContexts.size(); i++) {
+		CAContext *c = drawableContexts[i]->context();
 		if (c == context) {
-			setCurrentContext((CADrawableContext*)_drawableCList.at(i));
-			return (CADrawableContext*)_drawableCList.at(i);
+			setCurrentContext(drawableContexts[i]);
+			return drawableContexts[i];
 		}
 	}
 
@@ -303,10 +308,11 @@ CADrawableContext *CAScoreView::selectContext(CAContext *context) {
 */
 void CAScoreView::setLastMousePressCoordsAfter(const QList<CAMusElement*> list) {
 	double maxX = 0;
-	for( int i=0; i < _drawableMList.size(); i++) {
-		CADrawableMusElement* delt = _drawableMList.at(i);
-		if(list.contains(delt->musElement()))
-			maxX = qMax(delt->xPos() + delt->width(), maxX);
+	for( int i=0; i < list.size(); i++ ) {
+		QList<CADrawable*> drawables = _mapDrawable.values(list[i]);
+		for ( int j=0; j<drawables.size(); j++) {
+			maxX = qMax(drawables[j]->xPos() + drawables[j]->width(), maxX);
+		}
 	}
 	QPoint newCoords(lastMousePressCoords());
 	newCoords.setX(maxX);
@@ -356,10 +362,13 @@ QList<CADrawableMusElement*> CAScoreView::musElementsAt(double x, double y) {
 */
 CADrawableMusElement* CAScoreView::selectMElement(CAMusElement *elt) {
 	_selection.clear();
-
-	for (int i=0; i<_drawableMList.size(); i++) {
-		if ( _drawableMList.at(i)->musElement() == elt && _drawableMList.at(i)->isSelectable() ) {
-			addToSelection(_drawableMList.at(i));
+	
+	QList<CADrawable*> drawables = _mapDrawable.values(elt);
+	for (int i=0; i<drawables.size(); i++) {
+		if ( drawables[i]->drawableType()==CADrawable::DrawableMusElement &&
+		     static_cast<CADrawableMusElement*>(drawables[i])->musElement() == elt &&
+		     drawables[i]->isSelectable() ) {
+			addToSelection(static_cast<CADrawableMusElement*>(drawables[i]));
 		}
 	}
 
@@ -371,57 +380,28 @@ CADrawableMusElement* CAScoreView::selectMElement(CAMusElement *elt) {
 		return 0;
 }
 
-/*!
-	Removes a drawable music element at the given coordinates \a x and \a y, if it exists.
-	Returns the pointer of the abstract music element, if the element was found and deleted.
-	\warning This function only deletes the CADrawable part of the object. You still need to delete the abstract part (the pointer returned)!
-*/
-CAMusElement *CAScoreView::removeMElement(double x, double y) {
-	CADrawableMusElement *elt = _drawableMList.removeElement(x,y,false);
-	if (elt) {
-		if (elt->drawableMusElementType() == CADrawableMusElement::DrawableClef)
-			((CADrawableStaff*)elt->drawableContext())->removeClef((CADrawableClef*)elt);
-		else if (elt->drawableMusElementType() == CADrawableMusElement::DrawableKeySignature)
-			((CADrawableStaff*)elt->drawableContext())->removeKeySignature((CADrawableKeySignature*)elt);
-		else if (elt->drawableMusElementType() == CADrawableMusElement::DrawableTimeSignature)
-			((CADrawableStaff*)elt->drawableContext())->removeTimeSignature((CADrawableTimeSignature*)elt);
-
-		elt->drawableContext()->removeMElement(elt);
-		CAMusElement *mElt = elt->musElement();
-		delete elt;	// delete drawable instance
-
-		return mElt;
-	}
-
-	return 0;
-}
-
-void CAScoreView::importElements(CAKDTree<CADrawableMusElement*> *drawableMList, CAKDTree<CADrawableContext*> *drawableCList)
+void CAScoreView::importElements(CAKDTree<CADrawableMusElement*> *origDMusElts, CAKDTree<CADrawableContext*> *origDContexts)
 {
-	for (int i=0; i<drawableCList->size(); i++)
-		addCElement(((CADrawableContext*)drawableCList->at(i))->clone());
-	for (int i=0; i<drawableMList->size(); i++)
+	QList<CADrawableContext*> drawableContexts = origDContexts->list();
+	for (int i=0; i<drawableContexts.size(); i++) {
+		addCElement(drawableContexts[i]->clone());
+	}
+	QList<CADrawableContext*> newDrawableContexts = _drawableCList.list();
+	
+	QList<CADrawableMusElement*> drawableMusElements = origDMusElts->list();
+	for (int i=0; i<drawableMusElements.size(); i++)
 	{
-		CADrawableContext* target;
-		int idx = drawableCList->list().indexOf(((CADrawableMusElement*)drawableMList->at(i))->drawableContext());
+		int idx = drawableContexts.indexOf(drawableMusElements[i]->drawableContext());
 		if(idx == -1)
 		{
-			printf("Error!! Music element %p is not in its context!\n", drawableMList->at(i));
-			target = 0;
+			std::cerr << "ERROR: Music element " << drawableMusElements[i] << " does not have a drawable context!" << std::endl;
 		} else
-			target = (CADrawableContext*)_drawableCList.at(idx);
-		addMElement(((CADrawableMusElement*)drawableMList->at(i))->clone(target));
+		if (newDrawableContexts.size()<=idx) {
+			std::cerr << "ERROR: Index out of range. " << newDrawableContexts.size() << " new drawable contexts created. Request for idx=" << idx << std::endl;
+		} else {
+			addMElement( drawableMusElements[i]->clone(newDrawableContexts[idx]) );
+		}
 	}
-}
-
-void CAScoreView::importMElements(CAKDTree<CADrawableMusElement*> *elts) {
-	for (int i=0; i<elts->size(); i++)
-		addMElement((CADrawableMusElement*)elts->at(i)->clone());
-}
-
-void CAScoreView::importCElements(CAKDTree<CADrawableContext*> *elts) {
-	for (int i=0; i<elts->size(); i++)
-		addCElement((CADrawableContext*)elts->at(i)->clone());
 }
 
 /*!
@@ -530,6 +510,7 @@ void CAScoreView::rebuild() {
 	_drawableMList.clear(true);
 	int contextIdx = (_currentContext ? _drawableCList.list().indexOf(_currentContext) : -1);	// remember the index of last used context
 	_drawableCList.clear(true);
+	_mapDrawable.clear();
 
 	CALayoutEngine::reposit(this);
 
@@ -843,6 +824,8 @@ void CAScoreView::setZoom(float z, double x, double y, bool animate, bool force)
 	General Qt's paint event.
 	All the music elements get actually rendered in this method.
 */
+#include <time.h> //benchmarking
+#include <sys/time.h> //benchmarking
 void CAScoreView::paintEvent(QPaintEvent *e) {
 	if (_holdRepaint)
 		return;
@@ -854,22 +837,6 @@ void CAScoreView::paintEvent(QPaintEvent *e) {
 		p.drawRect(0,0,width()-1,height()-1);
 	}
 
-	p.setClipping(true);
-	if (_repaintArea) {
-		p.setClipRect(QRect(qRound((_repaintArea->x() - _worldX)*_zoom),
-		                    qRound((_repaintArea->y() - _worldY)*_zoom),
-		                    qRound(_repaintArea->width()*_zoom),
-		                    qRound(_repaintArea->height()*_zoom)),
-		              Qt::UniteClip);
-	} else {
-		p.setClipRect(QRect(_canvas->x(),
-		                    _canvas->y(),
-		                    _canvas->width(),
-		                    _canvas->height()),
-		              Qt::UniteClip);
-	}
-
-
 	// draw the background
 	if (_repaintArea)
 		p.fillRect(qRound((_repaintArea->x() - _worldX)*_zoom), qRound((_repaintArea->y() - _worldY)*_zoom), qRound(_repaintArea->width()*_zoom), qRound(_repaintArea->height()*_zoom), _backgroundColor);
@@ -877,6 +844,8 @@ void CAScoreView::paintEvent(QPaintEvent *e) {
 		p.fillRect(_canvas->x(), _canvas->y(), _canvas->width(), _canvas->height(), _backgroundColor);
 
 	// draw contexts
+	timeval timeStart, timeEnd, timeEnd2;
+	gettimeofday(&timeStart, NULL);
 	QList<CADrawableContext*> cList;
 	//int j = _drawableCList.size();
 	if (_repaintArea)
@@ -904,12 +873,15 @@ void CAScoreView::paintEvent(QPaintEvent *e) {
 	else
 		mList = _drawableMList.findInRange(_worldX, _worldY, _worldW, _worldH);
 
+	gettimeofday(&timeEnd, NULL);
+
 	p.setRenderHint( QPainter::Antialiasing, CACanorus::settings()->antiAliasing() );
 
 	for (int i=0; i<mList.size(); i++) {
 		QColor color;
 		CAMusElement *elt = mList[i]->musElement();
-
+		
+		// determine element color (based on selection, current mode, active voice etc.)
 		if ( _selection.contains(mList[i])) {
 			color = selectionColor();
 		} else
@@ -967,6 +939,41 @@ void CAScoreView::paintEvent(QPaintEvent *e) {
 		}
 	}
 
+	// draw ruler
+	if (CACanorus::settings()->showRuler()) {
+		p.fillRect(0, 0, width(), RULER_HEIGHT, QColor::fromRgb(200, 200, 200, 128));
+		p.setPen(Qt::lightGray);
+		// find a staff with most barlines
+		QList<CADrawableContext*> dContextList = _drawableCList.list();
+		CADrawableStaff *dStaff = 0;
+		for (int i=0; i<dContextList.size(); i++) {
+			if ((dContextList[i]->drawableContextType()==CADrawableContext::DrawableStaff) &&
+				(!dStaff || dStaff->drawableBarlineList().size()<static_cast<CADrawableStaff*>(dContextList[i])->drawableBarlineList().size())) {
+				dStaff = static_cast<CADrawableStaff*>(dContextList[i]);
+			}
+		}
+		
+		QFont font("FreeSans");
+		font.setPixelSize( qRound(RULER_HEIGHT*0.8) );
+		p.setFont(font);
+		p.setPen(Qt::black);
+		
+		// draw the barline marks
+		CABarline *curBarline = dStaff->getBarline(_worldX+_worldW);
+		CADrawableBarline *curDBarline = (curBarline?static_cast<CADrawableBarline*>(_mapDrawable.values( dStaff->getBarline(_worldX+width()/_zoom) )[0]):0);
+		int dBarlineIdx = dStaff->drawableBarlineList().indexOf(curDBarline);
+		while ( curDBarline && curDBarline->xPos()>_worldX ) {
+			int center = qRound((curDBarline->xPos()-_worldX)*_zoom);
+			p.drawText( center-1, RULER_HEIGHT-2, QString::number(dBarlineIdx+1) );
+			
+			dBarlineIdx--;
+			curDBarline = (dBarlineIdx>=0?dStaff->drawableBarlineList()[dBarlineIdx]:0);
+		}
+		
+		// draw the time marks
+		
+	}
+	
 	// draw selection regions
 	for (int i=0; i<selectionRegionList().size(); i++) {
 		CADrawSettings c = {
@@ -1016,6 +1023,11 @@ void CAScoreView::paintEvent(QPaintEvent *e) {
 			p.drawText( qRound((_xCursor-_worldX+10) * _zoom), qRound((_yCursor-_worldY-10) * _zoom), CANote::generateNoteName(_shadowNote[0]->diatonicPitch().noteName(), _shadowNoteAccs) );
 		}
 	}
+	
+	gettimeofday(&timeEnd2, NULL);
+	
+//	std::cout << "finding elements to draw took " << timeEnd.tv_sec-timeStart.tv_sec+(timeEnd.tv_usec-timeStart.tv_usec)/1000000.0 << "s." << std::endl;
+//	std::cout << "painting " << mList.size() << " elements took " << timeEnd2.tv_sec-timeEnd.tv_sec+(timeEnd2.tv_usec-timeEnd.tv_usec)/1000000.0 << "s." << std::endl;
 
 	// flush the oldWorld coordinates as they're needed for the first repaint only
 	_oldWorldX = _worldX; _oldWorldY = _worldY;
@@ -1024,7 +1036,6 @@ void CAScoreView::paintEvent(QPaintEvent *e) {
 	if (_repaintArea) {
 		delete _repaintArea;
 		_repaintArea = 0;
-		p.setClipping(false);
 	}
 }
 
@@ -1433,9 +1444,9 @@ void CAScoreView::addToSelection(const QList<CADrawableMusElement*> list, bool s
 	Returns a pointer to its drawable element or 0, if the music element is not part of this score view.
 */
 CADrawableMusElement *CAScoreView::addToSelection(CAMusElement *elt) {
-	for (int i=0; i<_drawableMList.size(); i++) {
-		if ( static_cast<CADrawableMusElement*>(_drawableMList.at(i))->musElement() == elt )
-			addToSelection(static_cast<CADrawableMusElement*>(_drawableMList.at(i)));
+	QList<CADrawable*> l = _mapDrawable.values(elt);
+	for (int i=0; i<l.size(); i++) {
+		addToSelection(static_cast<CADrawableMusElement*>(l[i]));
 	}
 
 	emit selectionChanged();
@@ -1446,12 +1457,10 @@ CADrawableMusElement *CAScoreView::addToSelection(CAMusElement *elt) {
 	Adds the given list of abstract music elements to the selection.
 */
 void CAScoreView::addToSelection(const QList<CAMusElement*> elts) {
-	for (int i=0; i<_drawableMList.size(); i++) {
-		if ( _drawableMList.at(i)->isSelectable() ) {
-			for (int j=0; j<elts.size(); j++) {
-				if ( elts[j] == static_cast<CADrawableMusElement*>(_drawableMList.at(i))->musElement() )
-					addToSelection(static_cast<CADrawableMusElement*>(_drawableMList.at(i)), false);
-			}
+	for (int i=0; i<elts.size(); i++) {
+		QList<CADrawable*> l = _mapDrawable.values(elts[i]);
+		for (int j=0; j<l.size(); j++) {
+			addToSelection(static_cast<CADrawableMusElement*>(l[j]), false);
 		}
 	}
 
@@ -1465,8 +1474,9 @@ void CAScoreView::addToSelection(const QList<CAMusElement*> elts) {
 void CAScoreView::selectAll() {
 	clearSelection();
 
-	for(int i=0; i<_drawableMList.size(); i++)
-		addToSelection(_drawableMList.at(i), false);
+	QList<CADrawableMusElement*> elts = _drawableMList.list();
+	for(int i=0; i<elts.size(); i++)
+		addToSelection(elts[i], false);
 
 	emit selectionChanged();
 }
@@ -1516,22 +1526,24 @@ void CAScoreView::invertSelection() {
 	QList<CADrawableMusElement *> oldSelection = selection();
 	clearSelection();
 
-	for(int i=0; i<_drawableMList.size(); i++)
-		if(!oldSelection.contains(_drawableMList.at(i)))
-			addToSelection(_drawableMList.at(i), false);
+	QList<CADrawableMusElement*> elts = _drawableMList.list();
+	for(int i=0; i<elts.size(); i++)
+		if(!oldSelection.contains(elts[i]))
+			addToSelection(elts[i], false);
 
 	emit selectionChanged();
 }
 
 /*!
-	Finds the drawable instance of the given abstract music element.
+	Finds the first drawable instance of the given abstract music element.
 
 	\sa findCElement()
 */
 CADrawableMusElement *CAScoreView::findMElement(CAMusElement *elt) {
-	for (int i=0; i<_drawableMList.size(); i++)
-		if ( static_cast<CADrawableMusElement*>(_drawableMList.at(i))->musElement()==elt )
-			return static_cast<CADrawableMusElement*>(_drawableMList.at(i));
+	QList<CADrawable*> hits = _mapDrawable.values(elt);
+	if (hits.size()) {
+		return static_cast<CADrawableMusElement*>(hits[0]);
+	}
 	return 0;
 }
 
@@ -1541,9 +1553,10 @@ CADrawableMusElement *CAScoreView::findMElement(CAMusElement *elt) {
 	\sa findMElement()
 */
 CADrawableContext *CAScoreView::findCElement(CAContext *context) {
-	for (int i=0; i<_drawableCList.size(); i++)
-		if (static_cast<CADrawableContext*>(_drawableCList.at(i))->context()==context)
-			return static_cast<CADrawableContext*>(_drawableCList.at(i));
+	QList<CADrawable*> hits = _mapDrawable.values(context);
+	if (hits.size()) {
+		return static_cast<CADrawableContext*>(hits[0]);
+	}
 	return 0;
 }
 
@@ -1635,17 +1648,13 @@ QList<CADrawableContext*> CAScoreView::findContextsInRegion( QRect &region ) {
 int CAScoreView::coordsToTime( double x ) {
 	CADrawableMusElement *d1 = nearestLeftElement( x, 0 );
 	if ( selection().contains(d1) ) {
-		_drawableMList.list().removeAll(d1);
-		CADrawableMusElement *newD1 = nearestLeftElement( x, 0 );
-		_drawableMList.addElement(d1);
+		CADrawableMusElement *newD1 = nearestLeftElement( d1->xPos(), 0 );
 		d1 = newD1;
 	}
 
 	CADrawableMusElement *d2 = nearestRightElement( x, 0 );
 	if ( selection().contains(d2) ) {
-		_drawableMList.list().removeAll(d2);
-		CADrawableMusElement *newD2 = nearestRightElement( x, 0 );
-		_drawableMList.addElement(d2);
+		CADrawableMusElement *newD2 = nearestRightElement( d2->xPos()+d2->width(), 0 );
 		d2 = newD2;
 	}
 
@@ -1660,43 +1669,49 @@ int CAScoreView::coordsToTime( double x ) {
 }
 
 /*!
+ * Helper function for timeToCoords() when doing the binary search over elements.
+ * 
+ * \sa timeMusElementLessThan
+ */
+bool CAScoreView::musElementTimeLessThan(const CAMusElement* a, const int b) {
+     return (a->timeStart() < b);
+}
+
+/*!
+ * Helper function for timeToCoords() when doing the binary search over elements.
+ * 
+ * \sa musElementTimeLessThan
+ */
+bool CAScoreView::timeMusElementLessThan(const int a, const CAMusElement* b) {
+     return (a < b->timeStart());
+}
+
+
+/*!
 	Simple Version of \sa timeToCoords( time ):
 	Returns the X coordinate for the given Canorus \a time.
 	Returns -1, if such a time doesn't exist in the score.
 */
 double CAScoreView::timeToCoordsSimpleVersion( int time ) {
 	CADrawableMusElement *leftElt = 0;
-	CADrawableMusElement *rightElt = 0;
-	for (int i=0; i<_drawableMList.size(); i++) {
-		//if ( selection().contains( _drawableMList.at(i) ) ) {
-		//	std::cout << "  in continue-Ast" << std::endl;
-		//	continue;
-		//}
-		if ( _drawableMList.at(i)->musElement() && _drawableMList.at(i)->musElement()->timeStart() <= time && (
-				!leftElt || _drawableMList.at(i)->musElement()->timeStart() > leftElt->musElement()->timeStart() ||
-		         _drawableMList.at(i)->xPos() > leftElt->xPos() ) // get the right-most element of that time
-		   )
-			leftElt = _drawableMList.at(i);
-
-		if ( _drawableMList.at(i)->musElement() && _drawableMList.at(i)->musElement()->timeStart() >= time && (
-				!rightElt || _drawableMList.at(i)->musElement()->timeStart() < rightElt->musElement()->timeStart() ||
-		        _drawableMList.at(i)->xPos() < rightElt->xPos() ) // get the left-most element of that time
-		   )
-			rightElt = _drawableMList.at(i);
+	
+	QList<CAVoice*> voiceList = _sheet->voiceList();
+	for (int i=0; i<voiceList.size(); i++) {
+		// get the element still smaller or equal, but nearest to time
+		QList<CAMusElement*>::const_iterator it = qLowerBound(voiceList[i]->musElementList().constBegin(), voiceList[i]->musElementList().constEnd(), time, CAScoreView::musElementTimeLessThan);
+		if (it!=voiceList[i]->musElementList().constEnd()) {
+			if (_mapDrawable.contains(*it)) {
+				CADrawableMusElement *dElt = static_cast<CADrawableMusElement*>(_mapDrawable.values(*it).last());
+				if (leftElt->xPos()<dElt->xPos()) {
+					leftElt = dElt;
+				}
+			} else {
+				std::cerr << "ERROR: Drawable instance of musElement " << (*it) << " doesn't exist in _mapDrawable!" << std::endl;
+			}
+		}
 	}
-
-	if ( leftElt /* && rightElt */ && leftElt->musElement() /* && rightElt->musElement() */ ) {
-/*
-		int delta = (rightElt->musElement()->timeStart() - leftElt->musElement()->timeStart());
-		if (!delta) delta=1;
-		return qRound(leftElt->xPos() + ( rightElt->xPos() - leftElt->xPos() ) *
-		              ( ((float)time - leftElt->musElement()->timeStart()) / delta )
-		             );
-*/
-		return leftElt->xPos();
-	} else {
-		return -1;
-	}
+	
+	return leftElt?(leftElt->xPos()):(-1);
 }
 
 /*!
@@ -1706,22 +1721,38 @@ double CAScoreView::timeToCoordsSimpleVersion( int time ) {
 double CAScoreView::timeToCoords( int time ) {
 	CADrawableMusElement *leftElt = 0;
 	CADrawableMusElement *rightElt = 0;
-	for (int i=0; i<_drawableMList.size(); i++) {
-		if ( selection().contains( _drawableMList.at(i) ) )
-			continue;
-		if ( _drawableMList.at(i)->musElement() && _drawableMList.at(i)->musElement()->timeStart() <= time && (
-				!leftElt || _drawableMList.at(i)->musElement()->timeStart() > leftElt->musElement()->timeStart() ||
-		         _drawableMList.at(i)->xPos() > leftElt->xPos() ) // get the right-most element of that time
-		   )
-			leftElt = _drawableMList.at(i);
+	
+	QList<CAVoice*> voiceList = _sheet->voiceList();
+	for (int i=0; i<voiceList.size(); i++) {
+		// get the element still smaller or equal, but nearest to time
+		QList<CAMusElement*>::const_iterator it = qLowerBound(voiceList[i]->musElementList().constBegin(), voiceList[i]->musElementList().constEnd(), time, CAScoreView::musElementTimeLessThan);
+		if (it!=voiceList[i]->musElementList().constEnd()) {
+			if (_mapDrawable.contains(*it)) {
+				CADrawableMusElement *dElt = static_cast<CADrawableMusElement*>(_mapDrawable.values(*it).last());
+				if (!leftElt || leftElt->xPos()<dElt->xPos()) {
+					leftElt = dElt;
+				}
+			} else {
+				std::cerr << "ERROR: Drawable instance of musElement " << (*it) << " doesn't exist in _mapDrawable!" << std::endl;
+			}
+		}
+		
+		// and for the right element
+		it = qUpperBound(voiceList[i]->musElementList().constBegin(), voiceList[i]->musElementList().constEnd(), time, CAScoreView::timeMusElementLessThan);
+		if (it!=voiceList[i]->musElementList().constEnd()) {
+			if (_mapDrawable.contains(*it)) {
+				CADrawableMusElement *dElt = static_cast<CADrawableMusElement*>(_mapDrawable.values(*it).first());
+				if (!rightElt || rightElt->xPos()>dElt->xPos()) {
+					rightElt = dElt;
+				}
+			} else {
+				std::cerr << "ERROR: Drawable instance of musElement " << (*it) << " doesn't exist in _mapDrawable!" << std::endl;
+			}
+		}
 
-		if ( _drawableMList.at(i)->musElement() && _drawableMList.at(i)->musElement()->timeStart() >= time && (
-				!rightElt || _drawableMList.at(i)->musElement()->timeStart() < rightElt->musElement()->timeStart() ||
-		        _drawableMList.at(i)->xPos() < rightElt->xPos() ) // get the left-most element of that time
-		   )
-			rightElt = _drawableMList.at(i);
 	}
-
+	
+	// get the relative position between the nearest left and the nearest right elements
 	if ( leftElt && rightElt && leftElt->musElement() && rightElt->musElement() ) {
 		int delta = (rightElt->musElement()->timeStart() - leftElt->musElement()->timeStart());
 		if (!delta) delta=1;

@@ -34,7 +34,7 @@ IF(SWIG_FOUND AND NOT NO_SWIG)
 	SET(USE_SWIG True)
 	MESSAGE("SWIG found, using scripting extensions.")
 ELSE(SWIG_FOUND AND NOT NO_SWIG)
-	MESSAGE("SWIG *not* found, disabling SWIG!")
+	MESSAGE("SWIG version >=3 *not* found, disabling SWIG!")
 	SET(NO_RUBY True)
 	SET(NO_PYTHON True)
 ENDIF(SWIG_FOUND AND NOT NO_SWIG)
@@ -50,7 +50,7 @@ ELSE(RUBY_INCLUDE_PATH AND NOT NO_RUBY)
 	SET(RUBY_LIBRARY "")
 ENDIF(RUBY_INCLUDE_PATH AND NOT NO_RUBY)
 
-FIND_PACKAGE(PythonLibs)
+FIND_PACKAGE(PythonLibs 3.0)
 IF(PYTHON_INCLUDE_DIRS AND NOT NO_PYTHON)
 	MESSAGE("Python Library and Development files found. Python extensions enabled.")
 	# PYTHON_LIBRARY points to C:\PythonXY\pythonXY.dll
@@ -620,7 +620,7 @@ ENDIF(USE_PYTHON)
 # command. Never remove that line :-)
 # Add ${QT_QTTEST_LIBRARY} below to add the Qt Test library as well
 # Add ${POPPLERQT4_LIBRARY} ${POPPLER_LIBRARY} to reactivate poppler libraries
-TARGET_LINK_LIBRARIES(canorus ${QT_LIBRARIES} ${RUBY_LIBRARY} ${PYTHON_LIBRARY} )
+TARGET_LINK_LIBRARIES(canorus ${QT_LIBRARIES} ${RUBY_LIBRARY} ${PYTHON_LIBRARY} z pthread )
 # Duma leads to a crash on libfontconfig with Ubuntu (10.04/12.04)
 # duma )
 
