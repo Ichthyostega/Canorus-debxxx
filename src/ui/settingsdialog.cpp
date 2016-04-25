@@ -8,6 +8,7 @@
 #include <QSettings>
 #include <QDir>
 #include <QFileDialog>
+#include <QBoxLayout>
 
 // Python.h needs to be loaded first!
 #include "canorus.h"
@@ -51,7 +52,7 @@ void CASettingsDialog::setupPages( CASettingsPage currentPage ) {
 	uiShadowNotesInOtherStaffs->setChecked( CACanorus::settings()->shadowNotesInOtherStaffs() );
 	uiPlayInsertedNotes->setChecked( CACanorus::settings()->playInsertedNotes() );
 	uiAutoBar->setChecked( CACanorus::settings()->autoBar() );
-	uiSplitAtQuarterBoundaries->setChecked( CACanorus::settings()->splitAtQuarterBoundaries() );
+	uiUseNoteChecker->setChecked( CACanorus::settings()->useNoteChecker() );
 
 	// Appearance Page
 	uiAntiAliasing->setChecked( CACanorus::settings()->antiAliasing() );
@@ -143,7 +144,7 @@ void CASettingsDialog::applySettings() {
 	CACanorus::settings()->setShadowNotesInOtherStaffs( uiShadowNotesInOtherStaffs->isChecked() );
 	CACanorus::settings()->setPlayInsertedNotes( uiPlayInsertedNotes->isChecked() );
 	CACanorus::settings()->setAutoBar( uiAutoBar->isChecked() );
-	CACanorus::settings()->setSplitAtQuarterBoundaries( uiSplitAtQuarterBoundaries->isChecked() );
+	CACanorus::settings()->setUseNoteChecker( uiUseNoteChecker->isChecked() );
 
 	// Saving/Loading Page
 	CACanorus::settings()->setDocumentsDirectory( uiDocumentsDirectory->text() );
@@ -190,15 +191,23 @@ void CASettingsDialog::applySettings() {
 
 void CASettingsDialog::buildActionsEditorPage()
 {
-	int i;
-	QWidget oSingleActions; // all actions added here
-	const QList<QAction *> &roSAList = CACanorus::settings()->getActionList();
+    //int i;
+    //QWidget oSingleActions; // all actions added here
+    const QList<CASingleAction *> &roSAList = CACanorus::settings()->getActionList();
+    if(roSAList.size() <= 0)
+    {
+        qWarning("List of Actions is empty!");
+        return;
+    }
 	_commandsEditor = new CAActionsEditor( 0 );
-	// Read all elements from single action list (API requirement)
-	for(i=0; i< roSAList.size(); ++i)
-		oSingleActions.addAction( roSAList[i] );
-	// Add all command actions (loading happens earlier in Canorus)
-	_commandsEditor->addActions( &oSingleActions );
+    _commandsEditor->setObjectName(QString::fromUtf8("commandsEditor"));
+    commandsSettingsVBoxLayout->addWidget(_commandsEditor);
+
+    // Read all elements from single action list (API requirement)
+    //for(i=0; i< roSAList.size(); ++i)
+    //    oSingleActions.addAction( roSAList[i]->getAction() );
+    // Add all command actions (loading happens earlier in Canorus)
+    _commandsEditor->addActions( roSAList );
 }
 
 void CASettingsDialog::buildPreviewSheet() {

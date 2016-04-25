@@ -230,8 +230,6 @@ void CAKeybdInput::midiInEventToScore(CAScoreView *v, QVector<unsigned char> m) 
 				}
 			}
 		}
-		// TODO only compile test, note yet used
-		CACanorus::settings()->splitAtQuarterBoundaries();
 
 		// We make shure not to try to place a barline inside a chord or inside a tuplet
 		if ( CACanorus::settings()->autoBar() && !appendToChord && (!_tupPla || _tupPla->isFirstInTuplet())) {
@@ -260,7 +258,7 @@ void CAKeybdInput::midiInEventToScore(CAScoreView *v, QVector<unsigned char> m) 
 		// std::cout << " Selektierte Elemente: " << list.size() << " Stück, oben "<<lp.size()<<" und "<<lme.size() << std::endl;
 
 		// scene tracking
-		QRect scene = v->worldCoords();
+		QRectF scene = v->worldCoords();
 		int xlast = v->timeToCoordsSimpleVersion( voice->lastTimeStart() );
 		if ( ((xlast+50) > scene.right()) ) {	// the magic number 50 should be defined, ist the width of an element
 			scene.translate( scene.width()/2, 0 );
