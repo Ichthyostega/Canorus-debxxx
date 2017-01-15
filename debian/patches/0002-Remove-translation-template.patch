@@ -8,10 +8,10 @@ Remove the translation template from sources.
  1 file changed, 6 insertions(+)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index 515c3e6..70e4165 100644
+index 0a4f66b..12dcffa 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -460,6 +460,12 @@ set_source_files_properties(${CANORUS_PYTHON_WRAP_CXX} PROPERTIES COMPILE_FLAGS
+@@ -484,6 +484,12 @@ set_source_files_properties(${CANORUS_PYTHON_WRAP_CXX} PROPERTIES COMPILE_FLAGS
  
  # Set translation files
  FILE(GLOB Canorus_Translation_Srcs "lang/*.ts") # lang/*.ts -> Canorus_Translation_Srcs

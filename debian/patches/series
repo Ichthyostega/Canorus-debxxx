@@ -1,9 +1,8 @@
 0001-Remove-extra-documentation.patch
 0002-Remove-translation-template.patch
 0003-Reduce-linked-libraries.patch
-0004-Do-not-install-userguide.patch
-0005-Complete-desktop-file.patch
-0006-Do-not-update-translation-files.patch
-0007-Do-not-install-examples.patch
-0008-Compile-with-O2.patch
-0009-Fix-uninitialized-variables.patch
+0004-Complete-desktop-file.patch
+0005-Do-not-update-translation-files.patch
+0006-Do-not-install-examples.patch
+0007-Compile-with-O2.patch
+0008-Fix-uninitialized-variables.patch

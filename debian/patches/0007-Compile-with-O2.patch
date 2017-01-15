@@ -8,7 +8,7 @@ Necessary for -D_FORTFY_SOURCE=2 and generally recommened (policy 10.1).
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index c9caeb4..ff15b14 100644
+index 5882674..b929f2f 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
 @@ -13,7 +13,7 @@ IF(NOT CMAKE_BUILD_TYPE)
@@ -19,4 +19,4 @@ index c9caeb4..ff15b14 100644
 +SET(CMAKE_C_FLAGS_DEBUG "-O2 -g -fstack-protector-all -Wall -Werror -Wuninitialized -Wtype-limits -Wstack-protector")
  SET(CMAKE_C_FLAGS_RELEASE "-O2")
  
- SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+ SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -std=c++11")

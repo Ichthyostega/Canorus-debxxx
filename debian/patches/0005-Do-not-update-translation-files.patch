@@ -5,27 +5,29 @@ Subject: Do not update translation files
 During the build, translations should not be updated. Otherwise,
 the resulting diff will be huge.
 ---
- src/CMakeLists.txt | 12 ++++++------
- 1 file changed, 6 insertions(+), 6 deletions(-)
+ src/CMakeLists.txt | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index ea3fcf5..10559eb 100644
+index b2cb243..7b6890d 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -674,12 +674,12 @@ ENDIF(MINGW)
+@@ -715,13 +715,13 @@ ENDIF(MINGW)
  ###############
  # Translation #
  ###############
 -ADD_CUSTOM_COMMAND(
 -	TARGET canorus
 -	PRE_BUILD
--	COMMAND ${QT_BINARY_DIR}/lupdate
+-	#COMMAND ${QT_BINARY_DIR}/lupdate
+-  COMMAND lupdate
 -	ARGS -noobsolete ${Canorus_UIC_Srcs} ${Canorus_Srcs} -ts ${Canorus_Translation_Srcs} lang/template.ts
 -)
 +#ADD_CUSTOM_COMMAND(
 +#	TARGET canorus
 +#	PRE_BUILD
-+#	COMMAND ${QT_BINARY_DIR}/lupdate
++#	#COMMAND ${QT_BINARY_DIR}/lupdate
++#	COMMAND lupdate
 +#	ARGS -noobsolete ${Canorus_UIC_Srcs} ${Canorus_Srcs} -ts ${Canorus_Translation_Srcs} lang/template.ts
 +#)
  ADD_CUSTOM_COMMAND(

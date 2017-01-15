@@ -68,10 +68,10 @@ index fc7ba15..26e2a0a 100644
  	while (workTime && (currentTime >= musicLengthToTimeLength( HundredTwentyEighth ))) {
  
 diff --git a/src/ui/mainwin.cpp b/src/ui/mainwin.cpp
-index 211b9c4..caffbed 100644
+index f7b03f1..786601e 100644
 --- a/src/ui/mainwin.cpp
 +++ b/src/ui/mainwin.cpp
-@@ -1779,7 +1779,7 @@ void CAMainWin::scoreViewMousePress(QMouseEvent *e, const QPoint coords) {
+@@ -1774,7 +1774,7 @@ void CAMainWin::scoreViewMousePress(QMouseEvent *e, const QPoint coords) {
  			// Insert context
  			if (uiContextType->isChecked()) {
  				// Add new Context
@@ -80,7 +80,7 @@ index 211b9c4..caffbed 100644
  				CADrawableContext *dupContext = v->nearestUpContext(coords.x(), coords.y());
  				switch(uiContextType->currentId()) {
  					case CAContext::Staff: {
-@@ -2534,7 +2534,7 @@ void CAMainWin::insertMusElementAt(const QPoint coords, CAScoreView *v) {
+@@ -2582,7 +2582,7 @@ bool CAMainWin::insertMusElementAt(const QPoint coords, CAScoreView *v) {
  				// same code for the Rest insertion
  
  				CATuplet *tuplet = static_cast<CAPlayable*>(left->musElement())->tuplet();
@@ -89,7 +89,7 @@ index 211b9c4..caffbed 100644
  				if ( tuplet  ) {
  					noteList = tuplet->noteList();
  					number = tuplet->number();
-@@ -2632,7 +2632,7 @@ void CAMainWin::insertMusElementAt(const QPoint coords, CAScoreView *v) {
+@@ -2680,7 +2680,7 @@ bool CAMainWin::insertMusElementAt(const QPoint coords, CAScoreView *v) {
  				// same code for the Note insertion
  
  				CATuplet *tuplet = static_cast<CAPlayable*>(left->musElement())->tuplet();
@@ -99,10 +99,10 @@ index 211b9c4..caffbed 100644
  					noteList = tuplet->noteList();
  					number = tuplet->number();
 diff --git a/src/widgets/actionseditor.cpp b/src/widgets/actionseditor.cpp
-index 35341bf..186b317 100644
+index 1fb7338..aacebb6 100644
 --- a/src/widgets/actionseditor.cpp
 +++ b/src/widgets/actionseditor.cpp
-@@ -525,7 +525,7 @@ bool CAActionsEditor::loadActionsTable(const QString & filename, bool bSCuts/* =
+@@ -532,7 +532,7 @@ bool CAActionsEditor::loadActionsTable(const QString & filename, enum fileType t
  
  	// Lines with '#' (comments) will be ignored
  	QRegExp rx("^(.*)\\t|\\s*(.*)\\t|\\s*(.*)\\t|\\s*(.*)\\t|\\s*(.*)\\t|\\s*(.*)");
