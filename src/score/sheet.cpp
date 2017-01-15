@@ -5,7 +5,8 @@
 	Licensed under the GNU GENERAL PUBLIC LICENSE. See LICENSE.GPL for details.
 */
 
-#include <QHash>
+#include <QHash>   // used for mapping when cloning the sheet to a new sheet
+#include <QObject> // QObject::tr
 
 #include "score/document.h"
 #include "score/context.h"
@@ -14,6 +15,7 @@
 #include "score/voice.h"
 #include "score/lyricscontext.h"
 #include "score/tempo.h"
+#include "score/notecheckererror.h"
 
 /*!
 	\class CASheet
@@ -173,5 +175,17 @@ void CASheet::insertContextAfter( CAContext *after, CAContext *c ) {
 		_contextList.prepend(c);
 	} else {
 		_contextList.insert(idx+1, c);
+	}
+}
+
+/*!
+ * Removes any note checker errors in the current sheet.
+ * This function is usually called when changing the score and before re-running
+ * the note checker.
+ */
+void CASheet::clearNoteCheckerErrors() {
+	for (int i=0; i<_noteCheckerErrorList.size(); i++) {
+		delete _noteCheckerErrorList[i]; // delete also remove an instance from _noteCheckerErrorList
+		i--;
 	}
 }

@@ -18,6 +18,8 @@
 
 #include "control/mainwinprogressctl.h"
 
+#include "core/notechecker.h"
+
 #include "score/document.h"
 #include "score/muselement.h"
 #include "score/note.h"
@@ -59,19 +61,21 @@ class CATransposeView;
 class CAMidiRecorderView;
 class CAKeybdInput;
 class CAExport;
+class CAActionStorage;
 
 class CAMainWin : public QMainWindow, private Ui::uiMainWindow
 {
 	Q_OBJECT
 
 	friend class CAMainWinProgressCtl;
+    friend class CAActionDelegate;
+    friend class CAActionStorage;
 
 public:
 	enum CAMode {
 		NoDocumentMode,
 		ProgressMode,
 		InsertMode,
-		SelectMode,
 		EditMode,
 		ReadOnlyMode
 	};
@@ -88,7 +92,7 @@ public:
 	void newDocument();
 	void addSheet(CASheet *s);
 	void removeSheet(CASheet *s);
-	void insertMusElementAt( const QPoint coords, CAScoreView *v );
+	bool insertMusElementAt( const QPoint coords, CAScoreView *v );
 	void restartTimeEditedTime() { _timeEditedTime = 0; };
 	void deleteSelection( CAScoreView *v, bool deleteSyllable, bool deleteNotes, bool undo );
 	void copySelection( CAScoreView *v );
@@ -173,7 +177,6 @@ private slots:
 	void on_uiDocumentProperties_triggered();
 
 	// Insert
-	void on_uiSelectMode_toggled(bool);
 	void on_uiEditMode_toggled(bool);
 	void on_uiNewSheet_triggered();
 	void on_uiNewVoice_triggered();
@@ -235,6 +238,7 @@ private slots:
 
 	// Lyrics
 	void onTextEditKeyPressEvent(QKeyEvent *);
+	void confirmTextEdit(CAScoreView *v, CATextEdit *textEdit, CAMusElement *elt);
 
 	// Function marks
 	void on_uiFMFunction_toggled(bool, int);
@@ -371,6 +375,7 @@ private:
 	QTimer _timeEditedTimer;
 	unsigned int  _timeEditedTime;
 	CAMusElementFactory *_musElementFactory;
+	CANoteChecker _noteChecker;
 public:
 	inline CAMusElementFactory *musElementFactory() { return _musElementFactory; }
 private:
@@ -418,7 +423,6 @@ private:
 		// Insert toolbar
 		QToolBar     *uiInsertToolBar;
 			QActionGroup *uiInsertGroup;           // Group for mutual exclusive selection of music elements
-			// QAction       *uiSelectMode; // made by Qt Designer
 			// QAction       *uiNewSheet; // made by Qt Designer
 			CAMenuToolButton *uiContextType;
 
@@ -437,51 +441,52 @@ private:
 			// QAction        *uiNewSheet; // made by Qt Designer
 			QLineEdit         *uiSheetName;
 			// QAction        *uiRemoveSheet; // made by Qt Designer
-			// QAction        *uiSheetProperties; // made by Qt Designer
+            // QAction        *uiSheetProperties; // made by Qt Designer
 
 		QToolBar *uiContextToolBar;
 			// CAContext
-			QLineEdit        *uiContextName;
-			//QAction          *uiRemoveContext; // made by Qt Designer
-			//QAction          *uiContextProperties; // made by Qt Designer
+            QLineEdit         *uiContextName;
+            //QAction         *uiRemoveContext; // made by Qt Designer
+            //QAction         *uiContextProperties; // made by Qt Designer
 			// CAStaff
 			// CALyricsContext
-			QSpinBox         *uiStanzaNumber;
-			QAction          *uiStanzaNumberAction;
-			QComboBox        *uiAssociatedVoice;
-			QAction          *uiAssociatedVoiceAction;
+            QSpinBox          *uiStanzaNumber;
+            QAction           *uiStanzaNumberAction;
+            QComboBox         *uiAssociatedVoice;
+            QAction           *uiAssociatedVoiceAction;
 			// CAFunctionMarkContext
 
 		QToolBar *uiVoiceToolBar;
-			// QAction       *uiNewVoice;  // made by Qt Designer
-			CALCDNumber      *uiVoiceNum;
-			QLineEdit        *uiVoiceName;
-			QComboBox        *uiVoiceInstrument;
-			// QAction       *uiRemoveVoice; // made by Qt Designer
-			CAMenuToolButton *uiVoiceStemDirection;
-			// QAction       *uiVoiceProperties; // made by Qt Designer
+            // QAction        *uiNewVoice;  // made by Qt Designer
+            CALCDNumber       *uiVoiceNum;
+            QLineEdit         *uiVoiceName;
+            QComboBox         *uiVoiceInstrument;
+            // QAction        *uiRemoveVoice; // made by Qt Designer
+            CAMenuToolButton  *uiVoiceStemDirection;
+            // QAction        *uiVoiceProperties; // made by Qt Designer
 
 		QToolBar *uiPlayableToolBar; // note and rest properties are merged for the time being
 			// Note properties
-			CAMenuToolButton *uiPlayableLength;
-			CAMenuToolButton *uiNoteAccs;
-			CAMenuToolButton *uiSlurType;
+            CAMenuToolButton  *uiPlayableLength;
+            CAMenuToolButton  *uiNoteAccs;
+            CAMenuToolButton  *uiSlurType;
 public:		// Because CAKeyboardInput (input with midi keyboard) needs to operate these widgets to
 			// provide gui feedback, these, probably even more, should become public.
 			// Some clean interface would be appropriate.
-			CAMenuToolButton *uiTupletType;
-			QSpinBox         *uiTupletNumber;
-			QSpinBox         *uiTupletActualNumber;
+            CAMenuToolButton  *uiTupletType;
+            QSpinBox          *uiTupletNumber;
+            QSpinBox          *uiTupletActualNumber;
 private:
-			QAction          *uiTupletNumberAction;
-			QLabel           *uiTupletInsteadOf;
-			QAction          *uiTupletInsteadOfAction;
-			QAction          *uiTupletActualNumberAction;
-			// QAction       *uiNoteAccsVisible; // made by Qt Designer
-			CAMenuToolButton *uiNoteStemDirection;
+            QAction           *uiTupletNumberAction;
+            QLabel            *uiTupletInsteadOf;
+            QAction           *uiTupletInsteadOfAction;
+            QAction           *uiTupletActualNumberAction;
+            // QAction        *uiNoteAccsVisible; // made by Qt Designer
+            CAMenuToolButton  *uiNoteStemDirection;
+            CAActionStorage   *actionStorage;
 			// Rest properties
 			// CAMenuToolButton *uiPlayableLength; // same as note properties
-			// QLabel        *uiPlayableDotted; // same as note properties
+            // QLabel           *uiPlayableDotted; // same as note properties
 			// QAction          *uiHiddenRest; // made by Qt Designer
 
 		CAKeySignatureUI *_poKeySignatureUI; // Key signature UI parts
