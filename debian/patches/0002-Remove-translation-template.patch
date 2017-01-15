@@ -8,7 +8,7 @@ Remove the translation template from sources.
  1 file changed, 6 insertions(+)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index 59e1e51..23d81d4 100644
+index 515c3e6..70e4165 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
 @@ -460,6 +460,12 @@ set_source_files_properties(${CANORUS_PYTHON_WRAP_CXX} PROPERTIES COMPILE_FLAGS
