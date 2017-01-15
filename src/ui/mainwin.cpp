@@ -1,5 +1,5 @@
 /*!
-	Copyright (c) 2006-2009, Reinhard Katzmann, Matevž Jekovec, Canorus development team
+	Copyright (c) 2006-2015, Reinhard Katzmann, Matevž Jekovec, Canorus development team
 	All Rights Reserved. See AUTHORS for a complete list of authors.
 
 	Licensed under the GNU GENERAL PUBLIC LICENSE. See COPYING for details.
@@ -11,6 +11,7 @@
 #endif
 
 #include <QtGui>
+#include <QMessageBox>
 #include <QSlider>
 #include <QComboBox>
 #include <QMouseEvent>
@@ -19,6 +20,7 @@
 #include <QKeyEvent>
 #include <QString>
 #include <QTextStream>
+#include <QToolBar>
 #include <QXmlInputSource>
 #include <QComboBox>
 #include <QCheckBox>
@@ -142,7 +144,12 @@ QFileDialog *CAMainWin::uiExportDialog = 0;
 */
 CAMainWin::CAMainWin(QMainWindow *oParent)
  : QMainWindow( oParent ),
-   _mainWinProgressCtl(this) {
+   _mode(NoDocumentMode),
+   _mainWinProgressCtl(this),
+   _playbackView(0),
+   _repaintTimer(0),
+   _playback(0)
+{
 	setAttribute( Qt::WA_DeleteOnClose );
 	_iNumAllowed = 1;
 
@@ -155,10 +162,6 @@ CAMainWin::CAMainWin(QMainWindow *oParent)
 	setRebuildUILock( false );
 
 	// Initialize internal UI properties
-	_mode = NoDocumentMode;
-	_playback = 0;
-	_playbackView = 0;
-	_repaintTimer = 0;
 	uiLockScrollPlayback->setChecked( CACanorus::settings()->lockScrollPlayback() );
 
 	// Create plugins menus and toolbars in this main window
@@ -601,11 +604,11 @@ void CAMainWin::setupCustomUi() {
 	// Standard Toolbar
 	uiUndo->setDefaultAction( uiStandardToolBar->insertWidget( uiCut, uiUndo ) );
 	uiUndo->defaultAction()->setText(tr("Undo"));
-    uiUndo->defaultAction()->setShortcut(QApplication::translate("uiMainWindow", "Ctrl+Z", 0, QApplication::UnicodeUTF8));
+    uiUndo->defaultAction()->setShortcut(QApplication::translate("uiMainWindow", "Ctrl+Z", 0 /*, QApplication::UnicodeUTF8*/));
 	uiMenuEdit->insertAction( uiCut, uiUndo->defaultAction() );
 	QList<QKeySequence> redoShortcuts;
-	redoShortcuts << QApplication::translate("uiMainWindow", "Ctrl+Y", 0, QApplication::UnicodeUTF8);
-	redoShortcuts << QApplication::translate("uiMainWindow", "Ctrl+Shift+Z", 0, QApplication::UnicodeUTF8);
+	redoShortcuts << QApplication::translate("uiMainWindow", "Ctrl+Y", 0 /*, QApplication::UnicodeUTF8*/ );
+	redoShortcuts << QApplication::translate("uiMainWindow", "Ctrl+Shift+Z", 0 /*, QApplication::UnicodeUTF8*/ );
 	uiRedo->setDefaultAction( uiStandardToolBar->insertWidget( uiCut, uiRedo ) );
 	uiRedo->defaultAction()->setText(tr("Redo"));
     uiRedo->defaultAction()->setShortcuts(redoShortcuts);
@@ -794,6 +797,9 @@ void CAMainWin::setupCustomUi() {
 	uiPyConsoleDock->hide();
 #endif
 
+	// View
+	uiShowRuler->setChecked( CACanorus::settings()->showRuler() );
+	
 	// Help
 	addDockWidget( (qApp->isLeftToRight()) ? Qt::RightDockWidgetArea : Qt::LeftDockWidgetArea, uiHelpDock);
 	uiHelpDock->hide();
@@ -859,6 +865,7 @@ void CAMainWin::newDocument() {
 	}
 
 	setDocument(new CADocument());
+	setMode(SelectMode);
 	uiCloseDocument->setEnabled(true);
 	CACanorus::undo()->createUndoStack( document() );
 	restartTimeEditedTime();
@@ -867,8 +874,27 @@ void CAMainWin::newDocument() {
 	QList<PyObject*> argsPython;
 	argsPython << CASwigPython::toPythonObject(document(), CASwigPython::Document);
 	CASwigPython::callFunction(QFileInfo("scripts:newdocument.py").absoluteFilePath(), "newDefaultDocument", argsPython);
+#else
+	// fallback: add basic sheet with two staffs
+	CASheet *sheet1 = document()->addSheet();
+	CAStaff *staff1 = sheet1->addStaff();
+	staff1->addVoice();
+	staff1->voiceList()[0]->setStemDirection( CANote::StemUp );
+	staff1->voiceList()[1]->setStemDirection( CANote::StemDown );
+	staff1->voiceList()[0]->append( new CAClef( CAClef::Treble, staff1, 0 ) );
+	staff1->voiceList()[0]->append( new CATimeSignature( 4, 4, staff1, 0 ) );
+	
+	CAStaff *staff2 = sheet1->addStaff();
+	staff2->addVoice();
+	staff2->voiceList()[0]->setStemDirection( CANote::StemUp );
+	staff2->voiceList()[1]->setStemDirection( CANote::StemDown );
+	staff2->voiceList()[0]->append( new CAClef( CAClef::Bass, staff2, 0 ) );
+	staff2->voiceList()[0]->append( new CATimeSignature( 4, 4, staff2, 0 ) );
+	
+	staff1->synchronizeVoices();
+	staff2->synchronizeVoices();
 #endif
-
+	
 	// call local rebuild only because no other main windows share the new document
 	rebuildUI();
 
@@ -1106,6 +1132,17 @@ void CAMainWin::on_uiResourceView_toggled(bool checked) {
 	}
 }
 
+/*!
+	Toggles the visibility of the ruler.
+ */
+void CAMainWin::on_uiShowRuler_toggled(bool checked) {
+	if (checked) {
+		CACanorus::settings()->setShowRuler(true);
+	} else {
+		CACanorus::settings()->setShowRuler(false);
+	}
+	CACanorus::settings()->writeSettings();
+}
 
 /*!
 	Called when a floating view port is closed
@@ -1430,7 +1467,7 @@ void CAMainWin::on_uiEditMode_toggled(bool checked) {
  */
 void CAMainWin::setMode(CAMode mode, const QString &oModeHash) {
 	int iAllowed = _modeHash[oModeHash];
-	qWarning("Allowed %d, max allowed %d, modeHash %s",iAllowed,_iNumAllowed,oModeHash.toAscii().constData()); 
+	qWarning("Allowed %d, max allowed %d, modeHash %s",iAllowed,_iNumAllowed,oModeHash.toLatin1().constData()); 
 	if( iAllowed > 0 && iAllowed < _iNumAllowed )
 		setMode( mode );
 }
@@ -2963,9 +3000,9 @@ bool CAMainWin::on_uiSaveDocumentAs_triggered() {
 		// append the extension, if the filename doesn't contain a dot
 		//int i;
 		if (!s.contains('.')) {
-			int left = uiSaveDialog->selectedFilter().indexOf("(*.") + 2;
-			int len = uiSaveDialog->selectedFilter().size() - left - 1;
-			s.append( uiSaveDialog->selectedFilter().mid( left, len ) );
+			int left = uiSaveDialog->selectedNameFilter().indexOf("(*.") + 2;
+			int len = uiSaveDialog->selectedNameFilter().size() - left - 1;
+			s.append( uiSaveDialog->selectedNameFilter().mid( left, len ) );
 		}
 
 		return saveDocument(s);
@@ -2986,10 +3023,10 @@ CADocument *CAMainWin::openDocument(const QString& fileName) {
 	CAImport *open = 0;
 	if ( fileName.endsWith(".xml") ) {
 		open = new CACanorusMLImport();
-		uiSaveDialog->selectFilter( CAFileFormats::CANORUSML_FILTER );
+		uiSaveDialog->selectNameFilter( CAFileFormats::CANORUSML_FILTER );
 	} else if ( fileName.endsWith(".can") ) {
 		open = new CACanImport();
-		uiSaveDialog->selectFilter( CAFileFormats::CAN_FILTER );
+		uiSaveDialog->selectNameFilter( CAFileFormats::CAN_FILTER );
 	} else {
 		return 0; // FIXME Failing quietly, add error message
 	}
@@ -3055,9 +3092,9 @@ bool CAMainWin::saveDocument( QString fileName ) {
 	CACanorus::restartTimeEditedTimes( document() );
 
 	CAExport *save=0;
-	if ( uiSaveDialog->selectedFilter()==CAFileFormats::CANORUSML_FILTER ) {
+	if ( uiSaveDialog->selectedNameFilter()==CAFileFormats::CANORUSML_FILTER ) {
 		save = new CACanorusMLExport();
-	} else if ( uiSaveDialog->selectedFilter()==CAFileFormats::CAN_FILTER ) {
+	} else if ( uiSaveDialog->selectedNameFilter()==CAFileFormats::CAN_FILTER ) {
 		save = new CACanExport();
 	}
 
@@ -3089,7 +3126,7 @@ bool CAMainWin::saveDocument( QString fileName ) {
 	QMessageBox::critical(
 		this,
 		tr("Error while saving document"),
-		tr("Unknown file format %1.").arg(uiSaveDialog->selectedFilter())
+		tr("Unknown file format %1.").arg(uiSaveDialog->selectedNameFilter())
 	);
 	return false;
 }
@@ -3144,30 +3181,30 @@ void CAMainWin::on_uiExportDocument_triggered() {
 	}
 
 	if (!s.contains('.')) {
-		int left = uiExportDialog->selectedFilter().indexOf("(*.") + 2;
-		int len = uiExportDialog->selectedFilter().size() - left - 1;
-		fileExtString = uiExportDialog->selectedFilter().mid( left, len );
+		int left = uiExportDialog->selectedNameFilter().indexOf("(*.") + 2;
+		int len = uiExportDialog->selectedNameFilter().size() - left - 1;
+		fileExtString = uiExportDialog->selectedNameFilter().mid( left, len );
 		// the default file extension is the first one:
 		fileExtList = fileExtString.split( " " );
 		s.append( fileExtList[0] );
 	}
 
-	if (CAPluginManager::exportFilterExists(uiExportDialog->selectedFilter())) {
-		CAPluginManager::exportAction(uiExportDialog->selectedFilter(), document(), s);
+	if (CAPluginManager::exportFilterExists(uiExportDialog->selectedNameFilter())) {
+		CAPluginManager::exportAction(uiExportDialog->selectedNameFilter(), document(), s);
 	} else {
-		if ( uiExportDialog->selectedFilter() == CAFileFormats::MIDI_FILTER ) {
+		if ( uiExportDialog->selectedNameFilter() == CAFileFormats::MIDI_FILTER ) {
 			CAMidiExport *pme = new CAMidiExport;
 			_poExp = pme;
-		} else if ( uiExportDialog->selectedFilter() == CAFileFormats::LILYPOND_FILTER ) {
+		} else if ( uiExportDialog->selectedNameFilter() == CAFileFormats::LILYPOND_FILTER ) {
 			CALilyPondExport *ple = new CALilyPondExport;
 			_poExp = ple;
-		} else if ( uiExportDialog->selectedFilter() == CAFileFormats::MUSICXML_FILTER ) {
+		} else if ( uiExportDialog->selectedNameFilter() == CAFileFormats::MUSICXML_FILTER ) {
 			CAMusicXmlExport *musicxml = new CAMusicXmlExport;
 			_poExp = musicxml;
-		} else if ( uiExportDialog->selectedFilter() == CAFileFormats::PDF_FILTER ) {
+		} else if ( uiExportDialog->selectedNameFilter() == CAFileFormats::PDF_FILTER ) {
 			CAPDFExport *ppe = new CAPDFExport;
 			_poExp = ppe;
-		} else if ( uiExportDialog->selectedFilter() == CAFileFormats::SVG_FILTER ) {
+		} else if ( uiExportDialog->selectedNameFilter() == CAFileFormats::SVG_FILTER ) {
 			CASVGExport *pse = new CASVGExport;
 			_poExp = pse;
 		} else {
@@ -3206,19 +3243,19 @@ void CAMainWin::on_uiImportDocument_triggered() {
 
 	QString s = fileNames[0];
 
-	if (CAPluginManager::importFilterExists(uiImportDialog->selectedFilter())) {
+	if (CAPluginManager::importFilterExists(uiImportDialog->selectedNameFilter())) {
 		// Import done using a scripting engine
 		setDocument(new CADocument());
 		CACanorus::undo()->createUndoStack( document() );
 		uiCloseDocument->setEnabled(true);
 
-		CAPluginManager::importAction(uiImportDialog->selectedFilter(), document(), fileNames[0]);
+		CAPluginManager::importAction(uiImportDialog->selectedNameFilter(), document(), fileNames[0]);
 
 		CACanorus::rebuildUI( document() );
 	} else {
 		CAImport *import=0;
 
-		if ( uiImportDialog->selectedFilter() == CAFileFormats::MIDI_FILTER ) {
+		if ( uiImportDialog->selectedNameFilter() == CAFileFormats::MIDI_FILTER ) {
 			if (!document())
 				newDocument();
 			import = new CAMidiImport( document() );
@@ -3228,7 +3265,7 @@ void CAMainWin::on_uiImportDocument_triggered() {
 				import->importSheet();
 			}
 		} else
-		if ( uiImportDialog->selectedFilter() == CAFileFormats::LILYPOND_FILTER ) {
+		if ( uiImportDialog->selectedNameFilter() == CAFileFormats::LILYPOND_FILTER ) {
 			// activate this filter in src/canorus.cpp when sheet import is usable
 			if (!document())
 				newDocument();
@@ -3239,7 +3276,7 @@ void CAMainWin::on_uiImportDocument_triggered() {
 				import->importSheet();
 			}
 		} else
-		if ( uiImportDialog->selectedFilter() == CAFileFormats::MUSICXML_FILTER ) {
+		if ( uiImportDialog->selectedNameFilter() == CAFileFormats::MUSICXML_FILTER ) {
 			import = new CAMusicXmlImport();
 			if (import) {
 				import->setStreamFromFile( s );
@@ -3289,7 +3326,7 @@ void CAMainWin::onImportDone( int status ) {
 	Called when Export directly to PDF action is clicked.
 */
 void CAMainWin::on_uiExportToPdf_triggered() {
-	uiExportDialog->setFilter( CAFileFormats::PDF_FILTER );
+	uiExportDialog->setNameFilter( CAFileFormats::PDF_FILTER );
 	on_uiExportDocument_triggered();
 }
 
@@ -4065,14 +4102,17 @@ void CAMainWin::on_uiAboutQt_triggered() {
 }
 
 void CAMainWin::on_uiAboutCanorus_triggered() {
-	QMessageBox::about( this, tr("About Canorus"),
-	tr("<p><b>Canorus - The next generation music score editor</b></p>\
+	QString about=tr("<p><b>Canorus - The next generation music score editor</b></p>\
 <p>Version %1<br>\
-(C) 2006-2013 Canorus Development team. All rights reserved.<br>\
+(C) 2006-2015 Canorus Development team. All rights reserved.<br>\
 See the file AUTHORS for the list of Canorus developers<br><br>\
 This program is licensed under the GNU General Public License (GPL).<br>\
 See the file LICENSE.GPL for details.<br><br>\
-Homepage: <a href=\"http://www.canorus.org\">http://www.canorus.org</a></p>").arg(CANORUS_VERSION) );
+Homepage: <a href=\"http://www.canorus.org\">http://www.canorus.org</a></p>").arg(CANORUS_VERSION);
+#ifdef USE_PYTHON
+	about += "<p>"+tr("Canorus is compiled with Python support.");
+#endif
+	QMessageBox::about( this, tr("About Canorus"), about);
 }
 
 void CAMainWin::on_uiSettings_triggered() {

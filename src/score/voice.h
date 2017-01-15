@@ -8,7 +8,7 @@
 #ifndef VOICE_H_
 #define VOICE_H_
 
-#include <QList>
+#include <QList> // music elements container
 
 #include "score/muselement.h"
 #include "score/note.h"
@@ -107,6 +107,9 @@ public:
 	inline unsigned char midiProgram() { return _midiProgram; }
 	inline void setMidiProgram(const unsigned char program) { _midiProgram = program; }
 
+	inline char midiPitchOffset() { return _midiPitchOffset; }
+	inline void setMidiPitchOffset(const char midiPitchOffset) { _midiPitchOffset = midiPitchOffset; }
+
 	inline const QList<CALyricsContext*>& lyricsContextList() { return _lyricsContextList; }
 	inline void addLyricsContext( CALyricsContext *lc ) { _lyricsContextList << lc; }
 	inline void setLyricsContexts( QList<CALyricsContext*> list ) { _lyricsContextList = list; }
@@ -118,8 +121,10 @@ private:
 	bool insertMusElement( CAMusElement *before, CAMusElement *elt );
 	bool updateTimes( int idx, int length, bool signsToo=false );
 
+	// list of all the music elements
 	QList<CAMusElement *> _musElementList;
 	CAStaff *_staff; // parent staff
+	
 	CANote::CAStemDirection _stemDirection;
 	QList<CALyricsContext*> _lyricsContextList;
 
@@ -130,5 +135,6 @@ private:
 	/////////////////////
 	unsigned char _midiChannel;
 	unsigned char _midiProgram;
+	char _midiPitchOffset;
 };
 #endif /* VOICE_H_ */
