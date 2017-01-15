@@ -5,18 +5,22 @@
 	Licensed under the GNU GENERAL PUBLIC LICENSE. See COPYING for details.
 */
 
+#include <QDebug>
+
 #include "core/settings.h"
 #ifndef SWIGCPP
 #include "canorus.h"
 #endif
 #include "interface/rtmididevice.h"
 
+//#define COPY_ACTIONLIST_ELEMS_MANUALLY 1
+
 // Define default settings
 const bool CASettings::DEFAULT_FINALE_LYRICS_BEHAVIOUR = false;
 const bool CASettings::DEFAULT_SHADOW_NOTES_IN_OTHER_STAFFS = false;
 const bool CASettings::DEFAULT_PLAY_INSERTED_NOTES = true;
 const bool CASettings::DEFAULT_AUTO_BAR = true;
-const bool CASettings::DEFAULT_SPLIT_AT_QUARTER_BOUNDARIES = false;
+const bool CASettings::DEFAULT_USE_NOTE_CHECKER = true;
 
 const QDir CASettings::DEFAULT_DOCUMENTS_DIRECTORY = QDir::home();
 const QDir CASettings::DEFAULT_SHORTCUTS_DIRECTORY = QDir( QDir::homePath() + "/.config/Canorus" );
@@ -43,7 +47,7 @@ const int CASettings::DEFAULT_MIDI_OUT_PORT = -1;
 
 const CATypesetter::CATypesetterType CASettings::DEFAULT_TYPESETTER = CATypesetter::LilyPond;
 #ifdef Q_OS_WIN
-const QString                        CASettings::DEFAULT_TYPESETTER_LOCATION = "C:/Program files/LilyPond/usr/bin/lilypond-windows.exe";
+const QString                        CASettings::DEFAULT_TYPESETTER_LOCATION = "LilyPond/usr/bin/lilypond.exe";
 #elif Q_OS_MAC
 const QString                        CASettings::DEFAULT_TYPESETTER_LOCATION = "/Applications/LilyPond.app/Contents/Resources/bin/lilypond";
 #else
@@ -96,7 +100,9 @@ CASettings::CASettings( QObject * parent )
 
 void CASettings::initSettings()
 {
-	_poEmptyEntry = new QAction( this );
+#ifndef SWIGCPP
+    _poEmptyEntry = new CASingleAction( this );
+#endif
 }
 
 CASettings::~CASettings() {
@@ -104,6 +110,19 @@ CASettings::~CASettings() {
 	if( _poEmptyEntry )
 	  delete _poEmptyEntry;
 	_poEmptyEntry = 0;
+
+#ifndef SWIGCPP
+    if( false == _oActionList.isEmpty() )
+    {
+        CASingleAction *poActionEntry;
+        foreach(poActionEntry, _oActionList)
+        {
+            delete poActionEntry;
+            poActionEntry = 0;
+        }
+        _oActionList.clear();
+    }
+#endif
 }
 
 /*!
@@ -114,8 +133,8 @@ void CASettings::writeSettings() {
 	setValue( "editor/shadownotesinotherstaffs", shadowNotesInOtherStaffs() );
 	setValue( "editor/playinsertednotes", playInsertedNotes() );
 	setValue( "editor/autobar", autoBar() );
-	setValue( "editor/splitatquarterboundaries", splitAtQuarterBoundaries() );
-	setValue( "editor/showruler", showRuler() );
+	setValue( "editor/usenotechecker", useNoteChecker() );
+	setValue( "appearance/showruler", showRuler() );
 
 	setValue( "files/documentsdirectory", documentsDirectory().absolutePath() );
 	setValue( "files/defaultsaveformat", defaultSaveFormat() );
@@ -179,16 +198,11 @@ int CASettings::readSettings() {
 	else
 		setAutoBar( DEFAULT_AUTO_BAR );
 
-	if ( contains("editor/splitatquarterboundaries") )
-		setSplitAtQuarterBoundaries( value("editor/splitatquarterboundaries").toBool() );
+	if ( contains("editor/usenotechecker") )
+		setUseNoteChecker( value("editor/usenotechecker").toBool() );
 	else
-		setSplitAtQuarterBoundaries( DEFAULT_SPLIT_AT_QUARTER_BOUNDARIES );
+		setUseNoteChecker( DEFAULT_USE_NOTE_CHECKER );
 
-	if ( contains("editor/showruler") )
-		setShowRuler( value("editor/showruler").toBool() );
-	else
-		setShowRuler( DEFAULT_SHOW_RULER );
-	
 	// Saving/Loading settings
 	if ( contains("files/documentsdirectory") )
 		setDocumentsDirectory( value("files/documentsdirectory").toString() );
@@ -264,6 +278,11 @@ int CASettings::readSettings() {
 		setDisabledElementsColor( value("appearance/disabledelementscolor").value<QColor>() );
 	else
 		setDisabledElementsColor( DEFAULT_DISABLED_ELEMENTS_COLOR );
+	
+	if ( contains("appearance/showruler") )
+		setShowRuler( value("appearance/showruler").toBool() );
+	else
+		setShowRuler( DEFAULT_SHOW_RULER );
 
 #endif
 	// Playback settings
@@ -340,27 +359,49 @@ void CASettings::setMidiInPort(int in) {
   Search one single action in the list of actions (-1: entry not found)
   Returns an empty action element when the command was not found
 */
-int CASettings::getSingleAction(QString oCommand, QAction *&poResAction)
+int CASettings::getSingleAction(const QString &oCommandName, QAction *&poResAction)
 {
+    CASingleAction *poEntryAction;
 	for (int i=0; i < _oActionList.count(); i++) {
-		poResAction = &getSingleAction(i, _oActionList);
-		if( poResAction->objectName() == oCommand )
+        poEntryAction = _oActionList[i];
+        if( poEntryAction->getCommandName() == oCommandName )
+        {
+            poResAction = poEntryAction->getAction();
 			return i;
+        }
 	}
-	poResAction = _poEmptyEntry;
-	return -1;
+    poResAction = _poEmptyEntry->getAction();
+    return -1;
+}
+
+int CASettings::getSingleAction(const QString &oCommandName, CASingleAction *&poResAction)
+{
+    CASingleAction *poEntryAction;
+    for (int i=0; i < _oActionList.count(); i++) {
+        poEntryAction = _oActionList[i];
+        if( poEntryAction->getCommandName() == oCommandName )
+        {
+            poResAction = poEntryAction;
+            return i;
+        }
+    }
+    poResAction = _poEmptyEntry;
+    return -1;
 }
 
 /*!
  Updates an action in the action list
  Return 'true' if the update was successfull
- Warning: The action cannot be copied!
+ Warning: 1) The action will not be copied
+          2) Only shortcut and no midi information is updated
+          3) Description cannot be updated
 */
 bool CASettings::setSingleAction(QAction oSingleAction, int iPos)
 {
 	bool bRet = false;
 	if( iPos >= 0 && iPos < _oActionList.count() ) {
-		_oActionList[iPos] = &oSingleAction;
+        _oActionList[iPos]->setCommandName( oSingleAction.objectName() );
+        _oActionList[iPos]->setShortCutAsString( oSingleAction.shortcut().toString() );
 		bRet = true;
 	}
 	return bRet;
@@ -372,13 +413,14 @@ bool CASettings::setSingleAction(QAction oSingleAction, int iPos)
  Else: According to Qt doc "assigns the other list to this list"
  Warning: The actions themselves cannot be copied!
 */
-void CASettings::setActionList(QList<QAction *> &oActionList)
+void CASettings::setActionList(QList<CASingleAction *> &oActionList)
 {
 #ifdef COPY_ACTIONLIST_ELEMS_MANUALLY
 	_oActionList.clear();
+    CASingleAction *pActionEntry;
 	for (int i=0; i < oActionList.count(); i++) {
-		poResAction = &getSingleAction(i, oActionList);
-		addSingleAction(*poResAction);
+        pActionEntry = &getSingleAction(i, oActionList);
+        addSingleAction(*pActionEntry);
 	}
 #else
 	_oActionList = oActionList;
@@ -387,21 +429,39 @@ void CASettings::setActionList(QList<QAction *> &oActionList)
 
 /*!
  Adds a single action to the action list
- Warning: The action cannot be copied!
+ Warning: The action will be referenced!
 */
-void CASettings::addSingleAction(QAction oSingleAction)
+void CASettings::addSingleAction(CASingleAction &oSingleAction)
 {
-	_oActionList.append( &oSingleAction );
+    qWarning() << "CASettings::addSingleAction" << endl;
+#ifdef COPY_ACTIONLIST_ELEMS_MANUALLY
+    CASingleAction *pActionEntry = new CASingleAction(0); // parent ?
+    pActionEntry->setCommandName( oSingleAction.getCommandName() );
+    pActionEntry->setDescription( oSingleAction.getDescription() );
+    pActionEntry->setShortCutAsString( oSingleAction.getShortCutAsString() );
+    pActionEntry->setMidiKeySequence( oSingleAction.getMidiKeySequence() );
+    pActionEntry->newAction( oSingleAction.getAction()->parent() );
+    pActionEntry->getAction()->setObjectName( oSingleAction.getAction()->objectName() );
+    pActionEntry->getAction()->setActionGroup( oSingleAction.getAction()->actionGroup() );
+    pActionEntry->getAction()->setAutoRepeat( oSingleAction.getAction()->autoRepeat() );
+    pActionEntry->getAction()->setCheckable( oSingleAction.getAction()->isCheckable() );
+    pActionEntry->getAction()->setChecked( oSingleAction.getAction()->isChecked() );
+    pActionEntry->getAction()->setData( oSingleAction.getAction()->data() );
+    pActionEntry->setAction( oSingleAction.getAction() );
+    _oActionList.append( pActionEntry );
+#else
+    _oActionList.append( &oSingleAction );
+#endif
+    qWarning() << "New size is " << _oActionList.size() << endl;
 }
 
 /*!
  Removes a single action from the action list
  Return 'true' when succesfull
- Warning: The action itself cannot be deleted!
+ Warning: The action itself is not deleted!
 */
-bool CASettings::deleteSingleAction(QString oCommand)
+bool CASettings::deleteSingleAction(QString oCommand, CASingleAction *&poResAction)
 {
-	QAction *poResAction;
 	bool bRet = false;
 	int iPos = getSingleAction(oCommand, poResAction);
 	if( iPos >= 0 ) // Double entries should not be in the list
@@ -409,6 +469,10 @@ bool CASettings::deleteSingleAction(QString oCommand)
 		_oActionList.removeOne( poResAction );
 		bRet = true;
 	}
+#ifdef COPY_ACTIONLIST_ELEMS_MANUALLY
+    delete poResAction;
+    poResAction = 0;
+#endif
 	return bRet;
 }
 
@@ -416,9 +480,7 @@ void CASettings::readRecentDocuments() {
 	for ( int i=0; contains( QString("files/recentdocument") + QString::number(i) ); i++ )
 		CACanorus::addRecentDocument( value(QString("files/recentdocument") + QString::number(i)).toString() );
 }
-#endif
 
-#ifndef SWIGCPP
 void CASettings::writeRecentDocuments() {
 	for ( int i=0; contains( QString("files/recentdocument") + QString::number(i) ); i++ )
 		remove( QString("files/recentdocument") + QString::number(i) );
@@ -426,7 +488,7 @@ void CASettings::writeRecentDocuments() {
 	for ( int i=0; i<CACanorus::recentDocumentList().size(); i++ )
 		setValue( QString("files/recentdocument") + QString::number(i), CACanorus::recentDocumentList()[i] );
 }
-#endif
+#endif // SWIGCPP
 
 /*!
 	Returns the default settings path. This function is static and is used when no config

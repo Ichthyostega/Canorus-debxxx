@@ -11,14 +11,17 @@
 #include <QSettings>
 #ifndef SWIG
 #include <QColor>
-//#include "ui/singleaction.h"
-#include <QAction>
+#include "ui/singleaction.h"
+//#include <QAction>
 #endif
 #include <QDir>
 #include "core/fileformats.h"
 #include "core/typesetter.h"
 
 class CASettings : public QSettings {
+#ifndef SWIG
+	Q_OBJECT
+#endif
 public:
 	CASettings( QObject * parent = 0 );
 	CASettings( const QString & fileName, QObject * parent = 0 );
@@ -45,9 +48,9 @@ public:
 	inline bool autoBar() { return _autoBar; }
 	inline void setAutoBar( bool b ) { _autoBar = b; }
 	static const bool DEFAULT_AUTO_BAR;
-	inline bool splitAtQuarterBoundaries() { return _splitAtQuarterBoundaries; }
-	inline void setSplitAtQuarterBoundaries( bool b ) { _splitAtQuarterBoundaries = b; }
-	static const bool DEFAULT_SPLIT_AT_QUARTER_BOUNDARIES;
+	inline bool useNoteChecker() { return _useNoteChecker; }
+	inline void setUseNoteChecker( bool b ) { _useNoteChecker = b; }
+	static const bool DEFAULT_USE_NOTE_CHECKER;
 
 	/////////////////////////////
 	// Loading/Saving settings //
@@ -140,20 +143,21 @@ public:
 	inline void setLatestShortcutsDirectory( QDir d ) { _latestShortcutsDirectory = d; }
 	static const QDir DEFAULT_SHORTCUTS_DIRECTORY;
 #ifndef SWIG
-	int getSingleAction(QString oCommand, QAction *&poResAction);
-	/*!
+    int getSingleAction(const QString &oCommandName, QAction *&poResAction);
+    int getSingleAction(const QString &oCommandName, CASingleAction *&poResAction);
+    /*!
 	  Re one single action in the list of actions
 	  Does not check for the correct position in the list to be fast!
 	 */
-	inline QAction &getSingleAction(int iPos, QList<QAction *> &oActionList) {
-		QAction *poResAction = static_cast<QAction*> (oActionList[iPos]);	
+    inline CASingleAction &getSingleAction(int iPos, QList<CASingleAction *> &oActionList) {
+        CASingleAction *poResAction = static_cast<CASingleAction*> (oActionList[iPos]);
 		return *poResAction; }
 
 	bool setSingleAction(QAction oSingleAction, int iPos);
-	inline const QList<QAction*>& getActionList() { return _oActionList; }
-	void setActionList(QList<QAction *> &oActionList);
-	void addSingleAction(QAction oSingleAction);
-	bool deleteSingleAction(QString oCommand);
+    inline const QList<CASingleAction*>& getActionList() { return _oActionList; }
+    void setActionList(QList<CASingleAction *> &oActionList);
+    void addSingleAction(CASingleAction &oAction);
+    bool deleteSingleAction(QString oCommandName, CASingleAction *&poResAction);
 #endif
 
 private:
@@ -169,7 +173,7 @@ private:
 	bool _shadowNotesInOtherStaffs;
 	bool _playInsertedNotes;
 	bool _autoBar;
-	bool _splitAtQuarterBoundaries;
+	bool _useNoteChecker;
 
 	/////////////////////////////
 	// Loading/Saving settings //
@@ -234,8 +238,8 @@ private:
 	QDir _latestShortcutsDirectory; // save location of shortcuts/midi commands
 	// @ToDo: QAction can be exported to SWIG ? Abstract interface but requires QObject
 #ifndef SWIG
-    QList<QAction *> _oActionList;
-    QAction         *_poEmptyEntry; // Entry is unused for search function
+    QList<CASingleAction *> _oActionList;
+    CASingleAction         *_poEmptyEntry; // Entry is unused for search function
 #endif
 };
 

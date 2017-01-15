@@ -12,14 +12,26 @@ word! Canorus runs on Linux, Windows, MacOSX and others!
 
 Build dependencies:
 ===================
-The latest version of Qt4, Swig and CMake is prefered.
+The latest version of Qt5, Swig and CMake is preferred.
+Canorus supports the current "LTS" version 5.6.0
 
-- Qt development package >=4.4 (http://www.qt-project.org)
-- Swig >=2 (http://www.swig.org)
-- g++ >=4, make (http://gcc.gnu.org, http://www.mingw.org)
-- cmake >=2.6.2 (http://www.cmake.org)
-- Python development package >=2.5 (http://www.python.org)
-- (optional) Lyx, tex4ht (user's guide)
+- Qt development package >=5.3 (http://www.qt-project.org)
+- Swig >=2.0.12 (http://www.swig.org). Swig >= 3.0.8 is working too.
+  (cmake does not support parallel installations of swig)
+- g++ >=4.8, make (http://gcc.gnu.org, http://www.mingw.org)
+- cmake >=2.8 (http://www.cmake.org). CMake 3.x is not supported (does not work on SuSE)
+- Python development package >=3.0 (http://www.python.org)
+- (optional) Lyx, tex4ht (user's guide)     
+
+Qt5 Build (tested up to version 5.6.0)
+- Get Qt development package 5.6.0 (http://www.qt.io)
+- Get Swig, g++, cmake, python, lyx as specified above
+  (make sure to remove Swig 2.0 before using Swig 3.0)
+- Run cmake with prefix to the Qt installation path (f.e. "/opt/Qt")
+  $ cmake -DCMAKE_PREFIX_PATH=/opt/Qt/5.6/gcc_64 . 
+  (the prefix option can be skipped on most Linux distributions)
+- Ignore the warning about the missing ruby package
+- make -j4 (for dual-core use -j2 switch)
 
 Runtime dependencies:
 =====================
@@ -31,7 +43,7 @@ Compilation:
 ============
 1. (Optional) Compile User's guide:
  $ cd doc/usersguide
- $ make
+ $ make (use -j4 / -j2 for faster build)
   You need latex and other tools installed (see doc/Readme-doc.txt for details).
   You can skip this step, but the User's guide won't be launched using
   Help->User's Guide action then.
@@ -50,6 +62,9 @@ Installation
 
 Debian based distributions:
 ===========================
+One-liner to install build dependencies:
+ $ sudo apt-get install libqt5-webkit5-dev libqt5svg-dev qtbase5-dev qttools5-dev
+
 Download the SVN/release version of canorus, go to Canorus root directory and run:
  $ debian/rules binary
  
@@ -80,19 +95,19 @@ removing the line that caused the error (the fix Qt Team performed too).
 
 If you get the error "swig not found" then you have the problem
 that FindSWIG.cmake does not match your system configuration. On
-my system swig files are in /usr/share/swig2.x.y, so I needed to
-create a link to it from swig2.x:
+my system swig files are in /usr/share/swig3.x.y, so I needed to
+create a link to it from swig3.x:
 
- $ ln -s /usr/share/swig2.x.y /usr/share/swig2.x
+ $ ln -s /usr/share/swig3.x.y /usr/share/swig3.x
 
-Replace 2.x.y with the real version f.e. 2.0.4.
+Replace 3.x.y with the real version f.e. 3.0.8.
 
 -------------------------------------------------------------------------------
 
 If you get the following error:
 "libpython.a: undefined reference to openpty"
 your system requires the util library to be included to the
-Canorus link libaries. To do this edit src/CMakeFile.txt file
+Canorus link libaries. To do this edit src/CMakeLists.txt file
 and search for the line containing TARGET_LINK_LIBRARIES.
 Add " util" as last library to the line f.e. like this:
 

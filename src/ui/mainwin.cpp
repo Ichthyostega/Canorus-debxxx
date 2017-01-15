@@ -1,5 +1,5 @@
 /*!
-	Copyright (c) 2006-2015, Reinhard Katzmann, Matevž Jekovec, Canorus development team
+	Copyright (c) 2006-2016, Reinhard Katzmann, Matevž Jekovec, Canorus development team
 	All Rights Reserved. See AUTHORS for a complete list of authors.
 
 	Licensed under the GNU GENERAL PUBLIC LICENSE. See COPYING for details.
@@ -26,11 +26,13 @@
 #include <QCheckBox>
 #include <QThread>
 #include <iostream>
+#include <limits>
 
 #include "ui/mainwin.h"
 #include "ui/settingsdialog.h"
 #include "ui/propertiesdialog.h"
 #include "ui/transposeview.h"
+#include "ui/actionstorage.h"
 
 #include "scoreui/keysignatureui.h"
 
@@ -115,6 +117,7 @@
 #include "import/canimport.h"
 #include "import/midiimport.h"
 #include "import/musicxmlimport.h"
+#include "core/notechecker.h"
 
 /*!
 	\class CAMainWin
@@ -156,6 +159,7 @@ CAMainWin::CAMainWin(QMainWindow *oParent)
 	// Create the GUI (actions, toolbars, menus etc.)
 	createCustomActions();
 	setupUi( this ); // initialize elements created by Qt Designer
+    actionStorage = new CAActionStorage(); // Shortcut System
 	setupCustomUi();
 
 	// Explicitly initialize this so it isn't true sometimes
@@ -577,6 +581,7 @@ void CAMainWin::createCustomActions() {
 	// User's guide and other Help
 	uiHelpDock = new QDockWidget(tr("Help"), this);
 	uiHelpDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+	uiHelpDock->setMaximumWidth(400);
 	uiHelpWidget = new CAHelpBrowser( uiHelpDock );
 	uiHelpDock->setWidget( uiHelpWidget );
 
@@ -598,6 +603,7 @@ void CAMainWin::setupCustomUi() {
 	_musElementFactory = new CAMusElementFactory();
 
 	_poPrintPreviewCtl = new CAPreviewCtl( this );
+	connect(uiPrintPreview, SIGNAL(triggered()), _poPrintPreviewCtl, SLOT(on_uiPrintPreview_triggered()));
 	_poPrintCtl = new CAPrintCtl( this );
 
 	//uiPrint->setEnabled( false );
@@ -621,7 +627,6 @@ void CAMainWin::setupCustomUi() {
 	uiStandardToolBar->updateGeometry();
 
 	// Insert Toolbar
-	uiInsertToolBar->addAction( uiSelectMode );
 	uiInsertToolBar->addAction( uiEditMode );
 	uiInsertToolBar->addSeparator();
 	uiContextType->setDefaultAction( uiInsertToolBar->addWidget( uiContextType ) );
@@ -801,7 +806,7 @@ void CAMainWin::setupCustomUi() {
 	uiShowRuler->setChecked( CACanorus::settings()->showRuler() );
 	
 	// Help
-	addDockWidget( (qApp->isLeftToRight()) ? Qt::RightDockWidgetArea : Qt::LeftDockWidgetArea, uiHelpDock);
+	addDockWidget( (qApp->isLeftToRight()) ? Qt::RightDockWidgetArea : Qt::LeftDockWidgetArea, uiHelpDock );
 	uiHelpDock->hide();
 
 	// Score UI Interface
@@ -810,7 +815,6 @@ void CAMainWin::setupCustomUi() {
 
 	// Mutual exclusive groups
 	uiInsertGroup = new QActionGroup( this );
-	uiInsertGroup->addAction( uiSelectMode );
 	uiInsertGroup->addAction( uiEditMode );
 	uiInsertGroup->addAction( uiNewContext );
 	uiInsertGroup->addAction( uiContextType->defaultAction() );
@@ -846,6 +850,9 @@ void CAMainWin::setupCustomUi() {
 	uiFermataToolBar->hide();
 	uiRepeatMarkToolBar->hide();
 	uiFingeringToolBar->hide();
+
+    actionStorage->storeActionsFromMainWindow(*this);
+    actionStorage->addWinActions();
 }
 
 void CAMainWin::newDocument() {
@@ -865,7 +872,7 @@ void CAMainWin::newDocument() {
 	}
 
 	setDocument(new CADocument());
-	setMode(SelectMode);
+	setMode(EditMode);
 	uiCloseDocument->setEnabled(true);
 	CACanorus::undo()->createUndoStack( document() );
 	restartTimeEditedTime();
@@ -903,7 +910,7 @@ void CAMainWin::newDocument() {
 		currentScoreView()->selectContext( document()->sheetList()[0]->contextList()[0] );
 	}
 
-	setMode(SelectMode);
+	setMode(EditMode);
 }
 
 /*!
@@ -984,7 +991,7 @@ void CAMainWin::clearUI() {
 		delete _midiRecorderView;
 	}
 
-	uiSelectMode->trigger(); // select mode
+	uiEditMode->trigger(); // select mode
 }
 
 /*!
@@ -1296,7 +1303,7 @@ void CAMainWin::on_uiNewDocument_triggered() {
 void CAMainWin::on_uiUndo_toggled( bool checked, int row ) {
 	stopPlayback();
 	if ( document() ) {
-		int curVoiceIdx = 0;
+		int curVoiceIdx = -1;
 		if (currentVoice() && currentVoice()->staff() && currentVoice()->staff()->sheet()) {
 			curVoiceIdx = currentVoice()->staff()->sheet()->voiceList().indexOf(currentVoice());
 		}
@@ -1305,6 +1312,12 @@ void CAMainWin::on_uiUndo_toggled( bool checked, int row ) {
 			CACanorus::undo()->undo( document() );
 		}
 
+		if (CACanorus::settings()->useNoteChecker()) {
+			for (int i=0; i<document()->sheetList().size(); i++) {
+				_noteChecker.checkSheet(document()->sheetList()[i]);
+			}
+		}
+		
 		CACanorus::rebuildUI( document(), 0 );
 		if (curVoiceIdx>=0 && curVoiceIdx<currentSheet()->voiceList().size()) {
 			setCurrentVoice( currentSheet()->voiceList()[curVoiceIdx] );
@@ -1315,7 +1328,7 @@ void CAMainWin::on_uiUndo_toggled( bool checked, int row ) {
 void CAMainWin::on_uiRedo_toggled( bool checked, int row ) {
 	stopPlayback();
 	if ( document() ) {
-		int curVoiceIdx = 0;
+		int curVoiceIdx = -1;
 		if (currentVoice() && currentVoice()->staff() && currentVoice()->staff()->sheet()) {
 			curVoiceIdx = currentVoice()->staff()->sheet()->voiceList().indexOf(currentVoice());
 		}
@@ -1324,6 +1337,12 @@ void CAMainWin::on_uiRedo_toggled( bool checked, int row ) {
 			CACanorus::undo()->redo( document() );
 		}
 
+		if (CACanorus::settings()->useNoteChecker()) {
+			for (int i=0; i<document()->sheetList().size(); i++) {
+				_noteChecker.checkSheet(document()->sheetList()[i]);
+			}
+		}
+		
 		CACanorus::rebuildUI( document(), 0 );
 
 		if (curVoiceIdx>=0 && curVoiceIdx<currentSheet()->voiceList().size()) {
@@ -1448,13 +1467,10 @@ void CAMainWin::on_uiRemoveContext_triggered() {
 }
 
 void CAMainWin::on_uiContextType_toggled(bool checked, int buttonId) {
-	if (checked)
+	if (checked) {
+		musElementFactory()->setMusElementType( CAMusElement::Undefined );
 		setMode( InsertMode );
-}
-
-void CAMainWin::on_uiSelectMode_toggled(bool checked) {
-	if (checked)
-		setMode( SelectMode );
+	}
 }
 
 void CAMainWin::on_uiEditMode_toggled(bool checked) {
@@ -1463,7 +1479,7 @@ void CAMainWin::on_uiEditMode_toggled(bool checked) {
 }
 
 /*!
-	Allows to set the current mode from priviledged (ui/ctl) objects 
+	Allows to set the current mode from privileged (ui/ctl) objects 
  */
 void CAMainWin::setMode(CAMode mode, const QString &oModeHash) {
 	int iAllowed = _modeHash[oModeHash];
@@ -1479,24 +1495,6 @@ void CAMainWin::setMode(CAMode mode) {
 	_mode = mode;
 
 	switch (mode) {
-		case SelectMode: {
-			for (int i=0; i<_viewList.size(); i++) {
-				if ( _viewList[i]->viewType()==CAView::ScoreView ) {
-					CAScoreView *v = static_cast<CAScoreView*>(_viewList[i]);
-					if ( !v->playing())
-						v->unsetBorder();
-
-					v->setShadowNoteVisible(false);
-					if ( v->textEditVisible())
-						v->removeTextEdit();
-				}
-			}
-
-			musElementFactory()->setMusElementType( CAMusElement::Undefined );
-			uiVoiceNum->setRealValue( 0 );
-
-			break;
-		}
 		case InsertMode: {
 			QPen p;
 			p.setColor(Qt::blue);
@@ -1511,7 +1509,7 @@ void CAMainWin::setMode(CAMode mode) {
 			}
 
 			if ( currentScoreView() ) {
-				currentScoreView()->setShadowNoteVisible((musElementFactory()->musElementType() == CAMusElement::Note) ? true : false); /// \todo Set other mouse cursors
+				currentScoreView()->setShadowNoteVisible(musElementFactory()->musElementType() == CAMusElement::Note); /// \todo Set other mouse cursors
 				currentScoreView()->repaint();
 			}
 
@@ -1526,23 +1524,21 @@ void CAMainWin::setMode(CAMode mode) {
 				if (_viewList[i]->viewType()==CAView::ScoreView) {
 					CAScoreView *sv = static_cast<CAScoreView*>(_viewList[i]);
 					if (!sv->playing())
-						(sv->setBorder(p));
+						(sv->unsetBorder());
 
 					sv->setShadowNoteVisible(false);
 					sv->repaint();
 				}
 			}
 
-			if (currentScoreView() && currentScoreView()->selection().size()) {
-				CAMusElement *elt = currentScoreView()->selection().front()->musElement();
-				if ( elt->musElementType()==CAMusElement::Syllable ||
-				     ((elt->musElementType()==CAMusElement::Mark && (static_cast<CAMark*>(elt)->markType()==CAMark::Text)) || static_cast<CAMark*>(elt)->markType()==CAMark::BookMark)
-				) {
-					currentScoreView()->createTextEdit(currentScoreView()->selection().front());
-				} else {
-					currentScoreView()->removeTextEdit();
+			if (currentScoreView()) {
+				if (!currentScoreView()->selection().size()) {
+					musElementFactory()->setMusElementType( CAMusElement::Undefined );
 				}
+				uiVoiceNum->setRealValue( 0 );
 			}
+			
+			break;
 		}
 		case ReadOnlyMode:
 		case ProgressMode:
@@ -1642,7 +1638,7 @@ void CAMainWin::rebuildUI(bool repaint) {
 		int curIndex = uiTabWidget->currentIndex();
 
 		// save the current state of Views
-		QList<QRect> worldCoordsList;
+		QList<QRectF> worldCoordsList;
 		for (int i=0; i<_viewList.size(); i++)
 			if (_viewList[i]->viewType() == CAView::ScoreView)
 				worldCoordsList << static_cast<CAScoreView*>(_viewList[i])->worldCoords();
@@ -1690,7 +1686,8 @@ void CAMainWin::rebuildUI(bool repaint) {
 */
 void CAMainWin::scoreViewMousePress(QMouseEvent *e, const QPoint coords) {
 	CAScoreView *v = static_cast<CAScoreView*>(sender());
-
+	QList<CADrawableMusElement*> oldSelection = v->selection();
+	
 	CADrawableContext *prevContext = v->currentContext();
 	v->selectCElement(coords.x(), coords.y());
 
@@ -1735,21 +1732,16 @@ void CAMainWin::scoreViewMousePress(QMouseEvent *e, const QPoint coords) {
 	}
 
 	switch ( mode() ) {
-		case SelectMode:
 		case EditMode: {
 			v->clearSelectionRegionList();
 
-
+			CADrawableMusElement *dElt = 0;
+			CAMusElement *elt = 0;
+			
 			if ( v->selection().size() ) {
-				CADrawableMusElement *dElt = v->selection().front();
-				CAMusElement *elt = dElt->musElement();
+				dElt = v->selection().front();
+				elt = dElt->musElement();
 				if (!elt) break;
-
-				if ( mode()==EditMode &&
-				     (elt->musElementType()==CAMusElement::Syllable || (elt->musElementType()==CAMusElement::Mark && static_cast<CAMark*>(elt)->markType()==CAMark::Text))
-				   ){
-					v->createTextEdit( dElt );
-				}
 
 				// debug
 				std::cout << "drawableMusElement: " << dElt << ", x,y=" << dElt->xPos() << "," << dElt->yPos() << ", w,h=" << dElt->width() << "," << dElt->height() << ", dContext=" << dElt->drawableContext() << std::endl;
@@ -1769,8 +1761,11 @@ void CAMainWin::scoreViewMousePress(QMouseEvent *e, const QPoint coords) {
 					std::cout << "noteStart=" << static_cast<CASlur*>(elt)->noteStart() << ", noteEnd=" << static_cast<CASlur*>(elt)->noteStart();
 				}
 				std::cout << std::endl;
-			} else {
-				v->removeTextEdit();
+			}
+			
+			// lyrics, texts, bookmarks
+			if (v->textEditVisible() && oldSelection.size() && oldSelection.front()->musElement()) {
+				confirmTextEdit(v, v->textEdit(), oldSelection.front()->musElement());
 			}
 
 			break;
@@ -1843,7 +1838,7 @@ void CAMainWin::scoreViewMousePress(QMouseEvent *e, const QPoint coords) {
 					uiVoiceNum->setMax( 1 );
 					uiVoiceNum->setRealValue( 0 );
 				}
-				uiSelectMode->toggle();
+				uiEditMode->toggle();
 				v->repaint();
 				break;
 			} else
@@ -1858,13 +1853,14 @@ void CAMainWin::scoreViewMousePress(QMouseEvent *e, const QPoint coords) {
 				currentScoreView()->updateHelpers();
 			}
 
-			insertMusElementAt( coords, v );
+			// Insert playable/music element
+			bool success = insertMusElementAt( coords, v );
 
 			if ( musElementFactory()->musElementType()==CAMusElement::Rest )
 			     musElementFactory()->setMusElementType( CAMusElement::Note );
 
 			// Insert Syllable or Text
-			if ( (uiInsertSyllable->isChecked() || (uiMarkType->isChecked() && (musElementFactory()->markType()==CAMark::Text || musElementFactory()->markType()==CAMark::BookMark))) && !v->selection().isEmpty() ) {
+			if ( (uiInsertSyllable->isChecked() || (uiMarkType->isChecked() && (musElementFactory()->markType()==CAMark::Text || musElementFactory()->markType()==CAMark::BookMark) && success)) && !v->selection().isEmpty() ) {
 				v->createTextEdit( v->selection().front() );
 			} else {
 				v->removeTextEdit();
@@ -1906,22 +1902,8 @@ void CAMainWin::viewClicked() {
 */
 void CAMainWin::scoreViewMouseMove(QMouseEvent *e, QPoint coords) {
 	CAScoreView *c = static_cast<CAScoreView*>(sender());
-	if ( mode() == SelectMode && c->resizeDirection()!=CADrawable::Undefined ) {
-		int time = c->coordsToTime(coords.x());
-		time -= (time % CAPlayableLength::musicLengthToTimeLength(CAPlayableLength::Sixteenth)); // round timelength to eighth notes length
-		if ( c->resizeDirection()==CADrawable::Right && (time > c->selection().at(0)->musElement()->timeStart()) ) {
-			c->selection().at(0)->musElement()->setTimeLength( time - c->selection().at(0)->musElement()->timeStart() );
-			c->selection().at(0)->setWidth( c->timeToCoords(time) - c->selection().at(0)->xPos() );
-			c->repaint();
-		} else
-		if ( c->resizeDirection()==CADrawable::Left && (time < c->selection().at(0)->musElement()->timeEnd()) ) {
-			c->selection().at(0)->musElement()->setTimeLength( c->selection().at(0)->musElement()->timeEnd() - time );
-			c->selection().at(0)->musElement()->setTimeStart( time );
-			c->selection().at(0)->setXPos( c->timeToCoords(time) );
-			c->selection().at(0)->setWidth( c->timeToCoords(c->selection().at(0)->musElement()->timeEnd()) - c->timeToCoords(time) );
-			c->repaint();
-		}
-	} else
+	c->setMouseTracking(false); // disable mouse move events until we finish with drawing
+	
 	if ( (mode() == InsertMode && musElementFactory()->musElementType() == CAMusElement::Note) ) {
 		CADrawableStaff *s;
 		if (c->currentContext()?(c->currentContext()->drawableContextType() == CADrawableContext::DrawableStaff):0)
@@ -1944,28 +1926,49 @@ void CAMainWin::scoreViewMouseMove(QMouseEvent *e, QPoint coords) {
 		c->updateHelpers();
 		c->repaint();
 	} else
-	if ( mode()!=InsertMode  && e->buttons()==Qt::LeftButton ) { // multiple selection
-		c->clearSelectionRegionList();
-		int x=c->lastMousePressCoords().x(), y=c->lastMousePressCoords().y(),
-		    w=coords.x()-c->lastMousePressCoords().x(), h=coords.y()-c->lastMousePressCoords().y();
-		if (w<0) { x+=w; w*=(-1); } // user selected from right to left
-		if (h<0) { y+=h; h*=(-1); } // user selected from bottom to top
-		QRect selectionRect( x, y, w, h );
-
-		QList<CADrawableContext*> dcList = c->findContextsInRegion( selectionRect );
-		for (int i=0; i<dcList.size(); i++) {
-			QList<CADrawableMusElement*> musEltList = dcList[i]->findInRange( selectionRect.x(), selectionRect.x() + selectionRect.width() );
-			for (int j=0; j<musEltList.size(); j++)
-				if (musEltList[j]->drawableMusElementType()==CADrawableMusElement::DrawableSlur)
-					musEltList.removeAt(j--);
-
-			if (musEltList.size()) {
-				c->addSelectionRegion( QRect(musEltList.front()->xPos(), dcList[i]->yPos(),
-				                             musEltList.back()->xPos()+musEltList.back()->width()-musEltList.front()->xPos(), dcList[i]->height()) );
+	if ( mode()!=InsertMode ) {
+		if (c->resizeDirection()!=CADrawable::Undefined) {
+			// resize element
+			int time = c->coordsToTime(coords.x());
+			time -= (time % CAPlayableLength::musicLengthToTimeLength(CAPlayableLength::Sixteenth)); // round timelength to eighth notes length
+			if ( c->resizeDirection()==CADrawable::Right && (time > c->selection().at(0)->musElement()->timeStart()) ) {
+				c->selection().at(0)->musElement()->setTimeLength( time - c->selection().at(0)->musElement()->timeStart() );
+				c->selection().at(0)->setWidth( c->timeToCoords(time) - c->selection().at(0)->xPos() );
+				c->repaint();
+			} else
+			if ( c->resizeDirection()==CADrawable::Left && (time < c->selection().at(0)->musElement()->timeEnd()) ) {
+				c->selection().at(0)->musElement()->setTimeLength( c->selection().at(0)->musElement()->timeEnd() - time );
+				c->selection().at(0)->musElement()->setTimeStart( time );
+				c->selection().at(0)->setXPos( c->timeToCoords(time) );
+				c->selection().at(0)->setWidth( c->timeToCoords(c->selection().at(0)->musElement()->timeEnd()) - c->timeToCoords(time) );
+				c->repaint();
 			}
+		} else
+		if (e->buttons()==Qt::LeftButton && c->mouseDragActivated()) {
+			// multiple selection
+			c->clearSelectionRegionList();
+			int x=c->lastMousePressCoords().x(), y=c->lastMousePressCoords().y(),
+				w=coords.x()-c->lastMousePressCoords().x(), h=coords.y()-c->lastMousePressCoords().y();
+			if (w<0) { x+=w; w*=(-1); } // user selected from right to left
+			if (h<0) { y+=h; h*=(-1); } // user selected from bottom to top
+			QRect selectionRect( x, y, w, h );
+
+			QList<CADrawableContext*> dcList = c->findContextsInRegion( selectionRect );
+			for (int i=0; i<dcList.size(); i++) {
+				QList<CADrawableMusElement*> musEltList = dcList[i]->findInRange( selectionRect.x(), selectionRect.x() + selectionRect.width() );
+				for (int j=0; j<musEltList.size(); j++)
+					if (musEltList[j]->drawableMusElementType()==CADrawableMusElement::DrawableSlur)
+						musEltList.removeAt(j--);
+
+				if (musEltList.size()) {
+					c->addSelectionRegion( QRect(musEltList.front()->xPos(), dcList[i]->yPos(),
+												musEltList.back()->xPos()+musEltList.back()->width()-musEltList.front()->xPos(), dcList[i]->height()) );
+				}
+			}
+			c->repaint();
 		}
-		c->repaint();
 	}
+	c->setMouseTracking(true); // re-enable mouse move events, we finished rendering
 }
 
 /*!
@@ -1975,7 +1978,7 @@ void CAMainWin::scoreViewMouseMove(QMouseEvent *e, QPoint coords) {
 	\sa CAScoreView::selectAllCurBar()
  */
 void CAMainWin::scoreViewDoubleClick( QMouseEvent *e, const QPoint coords ) {
-	if (mode() == SelectMode) {
+	if (mode() == EditMode) {
 		static_cast<CAScoreView*>(sender())->selectAllCurBar();
 		static_cast<CAScoreView*>(sender())->repaint();
 	}
@@ -1988,7 +1991,7 @@ void CAMainWin::scoreViewDoubleClick( QMouseEvent *e, const QPoint coords ) {
 	\sa CAScoreView::selectAllCurContext()
  */
 void CAMainWin::scoreViewTripleClick( QMouseEvent *e, const QPoint coords ) {
-	if (mode() == SelectMode) {
+	if (mode() == EditMode) {
 		static_cast<CAScoreView*>(sender())->selectAllCurContext();
 		static_cast<CAScoreView*>(sender())->repaint();
 	}
@@ -2001,40 +2004,60 @@ void CAMainWin::scoreViewTripleClick( QMouseEvent *e, const QPoint coords ) {
 	\sa CAScoreView::mouseReleaseEvent(), scoreViewMousePress(), scoreViewMouseMove(), scoreViewWheel(), scoreViewKeyPress()
 */
 void CAMainWin::scoreViewMouseRelease(QMouseEvent *e, QPoint coords) {
-	CAScoreView *c = static_cast<CAScoreView*>(sender());
-	if ( c->resizeDirection()!=CADrawable::Undefined ) {
+	CAScoreView *v = static_cast<CAScoreView*>(sender());
+	if ( v->resizeDirection()!=CADrawable::Undefined ) {
 		CACanorus::undo()->pushUndoCommand();
-		CACanorus::rebuildUI(document(), c->sheet());
+		CACanorus::rebuildUI(document(), v->sheet());
 	}
 
-	if ( mode() != InsertMode  && c->lastMousePressCoords()!=coords ) { // area was selected
-		c->clearSelectionRegionList();
+	if ( mode() != InsertMode ) {
+		if ( v->mouseDragActivated() ) {
+			// area was selected
+			v->clearSelectionRegionList();
 
-		if (e->modifiers()==Qt::NoModifier)
-			c->clearSelection();
+			if (e->modifiers()==Qt::NoModifier)
+				v->clearSelection();
 
-		int x=c->lastMousePressCoords().x(), y=c->lastMousePressCoords().y(),
-		    w=coords.x()-c->lastMousePressCoords().x(), h=coords.y()-c->lastMousePressCoords().y();
-		if (w<0) { x+=w; w*=(-1); } // user selected from right to left
-		if (h<0) { y+=h; h*=(-1); } // user selected from bottom to top
-		QRect selectionRect( x, y, w, h );
+			int x=v->lastMousePressCoords().x(), y=v->lastMousePressCoords().y(),
+				w=coords.x()-v->lastMousePressCoords().x(), h=coords.y()-v->lastMousePressCoords().y();
+			if (w<0) { x+=w; w*=(-1); } // user selected from right to left
+			if (h<0) { y+=h; h*=(-1); } // user selected from bottom to top
+			QRect selectionRect( x, y, w, h );
 
-		QList<CADrawableContext*> dcList = c->findContextsInRegion( selectionRect );
-		for (int i=0; i<dcList.size(); i++) {
-			QList<CADrawableMusElement*> musEltList = dcList[i]->findInRange( selectionRect.x(), selectionRect.x() + selectionRect.width() );
-			if ( c->selectedVoice() && dcList[i]->context()!=c->selectedVoice()->staff() )
-				continue;
+			QList<CADrawableContext*> dcList = v->findContextsInRegion( selectionRect );
+			for (int i=0; i<dcList.size(); i++) {
+				QList<CADrawableMusElement*> musEltList = dcList[i]->findInRange( selectionRect.x(), selectionRect.x() + selectionRect.width() );
+				if ( v->selectedVoice() && dcList[i]->context()!=v->selectedVoice()->staff() )
+					continue;
 
-			for (int j=0; j<musEltList.size(); j++)
-				if ((!musEltList[j]->isSelectable()) ||
-					(c->selectedVoice() && musEltList[j]->musElement()->isPlayable() &&
-						static_cast<CAPlayable*>(musEltList[j]->musElement())->voice()!=c->selectedVoice()) ||
-					(musEltList[j]->drawableMusElementType()==CADrawableMusElement::DrawableSlur)
+				for (int j=0; j<musEltList.size(); j++)
+					if ((!musEltList[j]->isSelectable()) ||
+						(v->selectedVoice() && musEltList[j]->musElement()->isPlayable() &&
+							static_cast<CAPlayable*>(musEltList[j]->musElement())->voice()!=v->selectedVoice()) ||
+						(musEltList[j]->drawableMusElementType()==CADrawableMusElement::DrawableSlur)
+					)
+						musEltList.removeAt(j--);
+				v->addToSelection(musEltList);
+			}
+		} else {
+			// single element or none selected
+			CADrawableMusElement *dElt = 0;
+			CAMusElement *elt = 0;
+			
+			if (v->selection().size()==1) {
+				dElt = v->selection().front();
+				elt = dElt->musElement();
+			}
+			
+			if ( elt &&
+				(elt->musElementType()==CAMusElement::Syllable ||
+				(elt->musElementType()==CAMusElement::Mark && (static_cast<CAMark*>(elt)->markType()==CAMark::Text || static_cast<CAMark*>(elt)->markType()==CAMark::BookMark))
 				)
-					musEltList.removeAt(j--);
-			c->addToSelection(musEltList);
+			) {
+				v->createTextEdit( dElt );
+			}
 		}
-		c->repaint();
+		v->repaint();
 	}
 }
 
@@ -2051,16 +2074,16 @@ void CAMainWin::scoreViewWheel(QWheelEvent *e, QPoint coords) {
 	//int val;
 	switch (e->modifiers()) {
 		case Qt::NoModifier:			//scroll horizontally
-			sv->setWorldX( sv->worldX() - (int)((0.5*e->delta()) / sv->zoom()), CACanorus::settings()->animatedScroll() );
+			sv->setWorldX( sv->worldX() - (0.5*e->delta()) / sv->zoom(), CACanorus::settings()->animatedScroll() );
 			break;
 		case Qt::AltModifier:			//scroll horizontally, fast
-			sv->setWorldX( sv->worldX() - (int)(e->delta() / sv->zoom()), CACanorus::settings()->animatedScroll() );
+			sv->setWorldX( sv->worldX() - e->delta() / sv->zoom(), CACanorus::settings()->animatedScroll() );
 			break;
 		case Qt::ShiftModifier:			//scroll vertically
-			sv->setWorldY( sv->worldY() - (int)((0.5*e->delta()) / sv->zoom()), CACanorus::settings()->animatedScroll() );
+			sv->setWorldY( sv->worldY() - (0.5*e->delta()) / sv->zoom(), CACanorus::settings()->animatedScroll() );
 			break;
 		case 0x0A000000://SHIFT+ALT		//scroll vertically, fast
-			sv->setWorldY( sv->worldY() - (int)(e->delta() / sv->zoom()), CACanorus::settings()->animatedScroll() );
+			sv->setWorldY( sv->worldY() - e->delta() / sv->zoom(), CACanorus::settings()->animatedScroll() );
 			break;
 		case Qt::ControlModifier:		//zoom
 			if (e->delta() > 0)
@@ -2086,7 +2109,8 @@ void CAMainWin::scoreViewKeyPress(QKeyEvent *e) {
 
 	// go to Insert mode (if in Select mode) before changing note length
 	if(e->key() >= Qt::Key_0 && e->key() <= Qt::Key_9 && e->key() != Qt::Key_3) {
-		if (mode()!=EditMode && currentScoreView()->currentContext()) {
+		if (currentScoreView()->currentContext() && currentScoreView()->currentContext()->context()->contextType()==CAContext::Staff &&
+		    v->selection().size()==0) {
 			uiInsertPlayable->setChecked(true);
 		}
 	}
@@ -2152,10 +2176,7 @@ void CAMainWin::scoreViewKeyPress(QKeyEvent *e) {
 		}
 
 		case Qt::Key_Up: {
-			if (mode() == SelectMode) {	// select the upper music element
-				v->selectUpMusElement();
-				v->repaint();
-			} else if ((mode() == InsertMode) || (mode() == EditMode)) {
+			if ((mode() == InsertMode) || (mode() == EditMode)) {
 				bool rebuild=false;
 				if (v->selection().size())
 					CACanorus::undo()->createUndoCommand( document(), tr("rise note", "undo") );
@@ -2190,10 +2211,7 @@ void CAMainWin::scoreViewKeyPress(QKeyEvent *e) {
 		}
 
 		case Qt::Key_Down: {
-			if (mode() == SelectMode) {	// select the lower music element
-				v->selectDownMusElement();
-				v->repaint();
-			} else if ((mode() == InsertMode) || (mode() == EditMode)) {
+			if ((mode() == InsertMode) || (mode() == EditMode)) {
 				//bool rebuild = false;
 				if (v->selection().size())
 					CACanorus::undo()->createUndoCommand( document(), tr("lower note", "undo") );
@@ -2225,7 +2243,31 @@ void CAMainWin::scoreViewKeyPress(QKeyEvent *e) {
 			}
 			break;
 		}
+		
+		case Qt::Key_PageDown: {
+			v->setWorldX(v->worldX() + v->worldWidth(), CACanorus::settings()->animatedScroll());
+			v->repaint();
+			break;
+		}
+		
+		case Qt::Key_PageUp: {
+			v->setWorldX(v->worldX() - v->worldWidth(), CACanorus::settings()->animatedScroll());
+			v->repaint();
+			break;
+		}
+		
+		case Qt::Key_End: {
+			v->setWorldX(std::numeric_limits<double>::max(), CACanorus::settings()->animatedScroll());
+			v->repaint();
+			break;
+		}
 
+		case Qt::Key_Home: {
+			v->setWorldX(0, CACanorus::settings()->animatedScroll());
+			v->repaint();
+			break;
+		}
+		
 		case Qt::Key_Plus: {
 			if (mode()==InsertMode) {
 				musElementFactory()->addNoteExtraAccs(1); musElementFactory()->addNoteAccs(1);
@@ -2357,12 +2399,15 @@ void CAMainWin::scoreViewKeyPress(QKeyEvent *e) {
 
 		// Mode keys
 		case Qt::Key_Escape:
-			if (mode()==SelectMode) {
-				v->clearSelection();
-				v->setCurrentContext( 0 );
+			if (mode()==EditMode) {
+				if (v->selection().size()) {
+					v->clearSelection();
+				} else {
+					v->setCurrentContext( 0 );
+				}
+				v->repaint();
 			}
-			uiVoiceNum->setRealValue( 0 );
-			uiSelectMode->trigger();
+			uiEditMode->trigger();
 			break;
 		case Qt::Key_I:
 			uiInsertPlayable->trigger();
@@ -2437,8 +2482,8 @@ void CAMainWin::scoreViewKeyPress(QKeyEvent *e) {
 				else
 				if( idx<0 )
 					idx = currentSheet()->voiceList().size() -1;
-				//if ( idx >= 0 && idx < currentSheet()->voiceList().size() )
-					setCurrentVoice( currentSheet()->voiceList()[idx] );
+				
+				setCurrentVoice( currentSheet()->voiceList()[idx] );
 			}
 			break;
 		}
@@ -2458,8 +2503,11 @@ void CAMainWin::scoreViewKeyPress(QKeyEvent *e) {
 /*!
 	This method places the currently prepared music element in CAMusElementFactory to the staff or
 	voice, dependent on the music element type and the View coordinates.
+	
+	\return True, if a new element of any kind was inserted; False, if an
+	element was just edited or not handled at all.
 */
-void CAMainWin::insertMusElementAt(const QPoint coords, CAScoreView *v) {
+bool CAMainWin::insertMusElementAt(const QPoint coords, CAScoreView *v) {
 	CADrawableContext *drawableContext = v->currentContext();
 
 	CAStaff *staff=0;
@@ -2478,7 +2526,7 @@ void CAMainWin::insertMusElementAt(const QPoint coords, CAScoreView *v) {
 	bool success=false;
 
 	if (!drawableContext)
-		return;
+		return false;
 
 	CACanorus::undo()->createUndoCommand( document(), tr("insertion of music element", "undo") );
 
@@ -2726,7 +2774,7 @@ void CAMainWin::insertMusElementAt(const QPoint coords, CAScoreView *v) {
 					for (int i=noteList.indexOf(noteStart); i<=end; i++)
 						if (((musElementFactory()->slurType()==CASlur::SlurType && (noteList[i]->slurStart())) || noteList[i]->slurEnd()) ||
 						     (((musElementFactory()->slurType()==CASlur::PhrasingSlurType && (noteList[i]->phrasingSlurStart()))) || noteList[i]->phrasingSlurEnd()) )
-							return;
+							return false;
 
 					if (((musElementFactory()->slurType()==CASlur::SlurType && (noteStart->slurStart())) || noteEnd->slurEnd()) ||
 					    (((musElementFactory()->slurType()==CASlur::PhrasingSlurType && (noteStart->phrasingSlurStart()))) || noteEnd->phrasingSlurEnd()))
@@ -2782,15 +2830,20 @@ void CAMainWin::insertMusElementAt(const QPoint coords, CAScoreView *v) {
 			staff->synchronizeVoices();
 
 		CACanorus::undo()->pushUndoCommand();
+		if (CACanorus::settings()->useNoteChecker()) {
+			_noteChecker.checkSheet(v->sheet());
+		}
 		CACanorus::rebuildUI(document(), v->sheet());
 		CADrawableMusElement *d = v->selectMElement( musElementFactory()->musElement() );
 		musElementFactory()->emptyMusElem();
-
+		
 		// move the view to the right, if the right border was hit
 		if ( d && (d->xPos() > v->worldX()+0.85*v->worldWidth()) ) {
 			v->setWorldX( d->xPos()-v->worldWidth()/2, CACanorus::settings()->animatedScroll() );
 		}
 	}
+	
+	return success;
 }
 
 /*!
@@ -3060,11 +3113,16 @@ CADocument *CAMainWin::openDocument(CADocument *doc) {
 		CACanorus::undo()->createUndoStack( document() );
 
 		uiCloseDocument->setEnabled(true);
+		if (CACanorus::settings()->useNoteChecker()) {
+			for (int i=0; i<doc->sheetList().size(); i++) {
+				_noteChecker.checkSheet(doc->sheetList()[i]);
+			}
+		}
 		rebuildUI(); // local rebuild only
 		if ( doc->sheetList().size())
 			uiTabWidget->setCurrentIndex(0);
 
-		setMode( SelectMode );
+		setMode( EditMode );
 
 		// select the first context automatically
 		if ( document() && document()->sheetList().size() && document()->sheetList()[0]->contextList().size() )
@@ -3305,6 +3363,9 @@ void CAMainWin::onImportDone( int status ) {
 			if ( import->importedSheet() ) {
 				addSheet(import->importedSheet());
 				document()->addSheet(import->importedSheet());
+				if (CACanorus::settings()->useNoteChecker()) {
+					_noteChecker.checkSheet(import->importedSheet());
+				}
 				CACanorus::rebuildUI(document());
 			}
 		}
@@ -3422,6 +3483,8 @@ void CAMainWin::on_uiInsertPlayable_toggled(bool checked) {
 
 		musElementFactory()->setMusElementType( CAMusElement::Note );
 		setMode( InsertMode );
+		
+		on_uiPlayableLength_toggled(uiPlayableLength->isChecked(), uiPlayableLength->currentId() );
 	}
 }
 
@@ -3496,13 +3559,17 @@ void CAMainWin::on_uiPlayableLength_toggled(bool checked, int buttonId) {
 				} else {
 					p->staff()->synchronizeVoices();
 				}
-
+				
 				for (int j=0; j<p->voice()->lyricsContextList().size(); j++) { // reposit syllables
 					p->voice()->lyricsContextList().at(j)->repositSyllables();
 				}
 			}
 		}
 
+		if (CACanorus::settings()->useNoteChecker()) {
+			_noteChecker.checkSheet(v->sheet());
+		}
+		
 		CACanorus::undo()->pushUndoCommand();
 		CACanorus::rebuildUI( document(), currentSheet() );
 	}
@@ -3529,7 +3596,61 @@ void CAMainWin::onTextEditKeyPressEvent(QKeyEvent *e) {
 	//CADrawableContext *dContext = v->currentContext();
 	CAMusElement *elt = (v->selection().size()?v->selection().front()->musElement():0);
 
+	if ( elt ) {
+		if (elt->musElementType()==CAMusElement::Syllable ) {
+			CASyllable *syllable = static_cast<CASyllable*>(elt);
+
+			if ( e->key()==Qt::Key_Space  ||
+				e->key()==Qt::Key_Return ||
+				(e->key()==Qt::Key_Right && textEdit->cursorPosition()==textEdit->text().size()) ||
+				((e->key()==Qt::Key_Left || e->key()==Qt::Key_Backspace) && textEdit->cursorPosition()==0) ||
+				(CACanorus::settings()->finaleLyricsBehaviour() && e->key()==Qt::Key_Minus)
+			) {
+				// create or edit syllable
+				confirmTextEdit(currentScoreView(), textEdit, elt);
+
+				//CAVoice *voice = (syllable->associatedVoice()?syllable->associatedVoice():lc->associatedVoice());
+				CAMusElement *nextSyllable = 0;
+				if (syllable) {
+					if (e->key()==Qt::Key_Space || e->key()==Qt::Key_Right || e->key()==Qt::Key_Return) { // next right note
+						nextSyllable = syllable->lyricsContext()->next(syllable);
+					} else  if (e->key()==Qt::Key_Left || e->key()==Qt::Key_Backspace) {                  // next left note
+						nextSyllable = syllable->lyricsContext()->previous(syllable);
+					} else if (e->key()==Qt::Key_Minus) {
+						syllable->setHyphenStart(true);
+						nextSyllable = syllable->lyricsContext()->next(syllable);
+					}
+					if (nextSyllable) {
+						CADrawableMusElement *dNextSyllable = v->selectMElement(nextSyllable);
+						v->createTextEdit( dNextSyllable );
+						if ( e->key()==Qt::Key_Space || e->key()==Qt::Key_Right || e->key()==Qt::Key_Return ) {
+							v->textEdit()->setCursorPosition(0); // go to the beginning if moving to the right next syllable
+						}
+						
+						if ( dNextSyllable && (dNextSyllable->xPos() > v->worldX()+0.85*v->worldWidth()) ) {
+							v->setWorldX( dNextSyllable->xPos()-v->worldWidth()/2, CACanorus::settings()->animatedScroll() );
+						}
+					}
+				}
+			}
+		} else {
+			// ((elt->musElementType()==CAMusElement::Mark &&
+			//   static_cast<CAMark*>(elt)->markType()==CAMark::Text) || static_cast<CAMark*>(elt)->markType()==CAMark::BookMark)
+			if (e->key()==Qt::Key_Return) {
+				confirmTextEdit(currentScoreView(),textEdit, elt);
+			}
+		}
+	}
+	
+	// escape key - cancel
+	if (e->key()==Qt::Key_Escape) {
+		v->removeTextEdit();
+	}
+}
+
+void CAMainWin::confirmTextEdit(CAScoreView *v, CATextEdit *textEdit, CAMusElement *elt) {
 	if ( elt->musElementType()==CAMusElement::Syllable ) {
+		// create or edit syllable
 		CASyllable *syllable = static_cast<CASyllable*>(elt);
 
 		QString text = textEdit->text().simplified(); // remove any trailing whitespaces
@@ -3544,44 +3665,17 @@ void CAMainWin::onTextEditKeyPressEvent(QKeyEvent *e) {
 
 		//CALyricsContext *lc = static_cast<CALyricsContext*>(dContext->context());
 
-		// create or edit syllable
-		if ( e->key()==Qt::Key_Space  ||
-		     e->key()==Qt::Key_Return ||
-		     (e->key()==Qt::Key_Right && textEdit->cursorPosition()==textEdit->text().size()) ||
-		     ((e->key()==Qt::Key_Left || e->key()==Qt::Key_Backspace) && textEdit->cursorPosition()==0) ||
-		     (CACanorus::settings()->finaleLyricsBehaviour() && e->key()==Qt::Key_Minus)
-		) {
-			CACanorus::undo()->createUndoCommand( document(), tr("lyrics edit", "undo") );
-			syllable->setText(text);
-			syllable->setHyphenStart(hyphen);
-			syllable->setMelismaStart(melisma);
+		CACanorus::undo()->createUndoCommand( document(), tr("lyrics edit", "undo") );
+		syllable->setText(text);
+		syllable->setHyphenStart(hyphen);
+		syllable->setMelismaStart(melisma);
 
-			v->removeTextEdit();
-
-			//CAVoice *voice = (syllable->associatedVoice()?syllable->associatedVoice():lc->associatedVoice());
-			CAMusElement *nextSyllable = 0;
-			if (syllable) {
-				if (e->key()==Qt::Key_Space || e->key()==Qt::Key_Right || e->key()==Qt::Key_Return) { // next right note
-					nextSyllable = syllable->lyricsContext()->next(syllable);
-				} else  if (e->key()==Qt::Key_Left || e->key()==Qt::Key_Backspace) {                  // next left note
-					nextSyllable = syllable->lyricsContext()->previous(syllable);
-				} else if (e->key()==Qt::Key_Minus) {
-					syllable->setHyphenStart(true);
-					nextSyllable = syllable->lyricsContext()->next(syllable);
-				}
-				CACanorus::undo()->pushUndoCommand();
-				CACanorus::rebuildUI( document(), currentSheet() );
-				if (nextSyllable) {
-					CADrawableMusElement *dNextSyllable = v->selectMElement(nextSyllable);
-					v->createTextEdit( dNextSyllable );
-					if ( e->key()==Qt::Key_Space || e->key()==Qt::Key_Right || e->key()==Qt::Key_Return )
-						v->textEdit()->setCursorPosition(0); // go to the beginning if moving to the right next syllable
-				}
-			}
-		}
-	} else if ((elt->musElementType()==CAMusElement::Mark && static_cast<CAMark*>(elt)->markType()==CAMark::Text) || static_cast<CAMark*>(elt)->markType()==CAMark::BookMark) {
-		if (e->key()==Qt::Key_Return) {
-			CAMark *mark = static_cast<CAMark*>(elt);
+		v->removeTextEdit();
+	} else {
+		// ((elt->musElementType()==CAMusElement::Mark &&
+		//   static_cast<CAMark*>(elt)->markType()==CAMark::Text) || static_cast<CAMark*>(elt)->markType()==CAMark::BookMark)
+		CAMark *mark = static_cast<CAMark*>(elt);
+		if (!textEdit->text().isEmpty() || mark->markType()==CAMark::BookMark) {
 			CACanorus::undo()->createUndoCommand( document(), tr("text edit", "undo") );
 			if (mark->markType()==CAMark::Text) {
 				static_cast<CAText*>(mark)->setText( textEdit->text() );
@@ -3589,17 +3683,16 @@ void CAMainWin::onTextEditKeyPressEvent(QKeyEvent *e) {
 				static_cast<CABookMark*>(mark)->setText( textEdit->text() );
 			}
 			v->removeTextEdit();
-			CACanorus::undo()->pushUndoCommand();
-			CACanorus::rebuildUI( document(), currentSheet() );
+		} else {
+			// remove text sign with empty content, if it's not a bookmark
+			CACanorus::undo()->createUndoCommand( document(), tr("text edit", "delete") );
+			v->removeTextEdit();
+			delete mark;
 		}
-	} else {
-		v->removeTextEdit();
 	}
-
-	// escape key - cancel
-	if (e->key()==Qt::Key_Escape) {
-		v->removeTextEdit();
-	}
+	
+	CACanorus::undo()->pushUndoCommand();
+	CACanorus::rebuildUI( document(), currentSheet() );
 }
 
 void CAMainWin::on_uiFBMNumber_toggled( bool checked, int buttonId ) {
@@ -3871,6 +3964,10 @@ void CAMainWin::on_uiTimeSigBeats_valueChanged(int beats) {
 			CATimeSignature *timeSig = dynamic_cast<CATimeSignature*>(v->selection().at(0)->musElement());
 			if ( timeSig ) {
 				timeSig->setBeats( beats );
+				if (CACanorus::settings()->useNoteChecker()) {
+					_noteChecker.checkSheet(v->sheet());
+				}
+				
 				CACanorus::rebuildUI(document(), currentSheet());
 			}
 		}
@@ -4094,7 +4191,7 @@ void CAMainWin::sourceViewCommit(QString inputString) {
 }
 
 void CAMainWin::on_uiUsersGuide_triggered() {
-	CACanorus::help()->showUsersGuide( "", this );
+	CACanorus::help()->showUsersGuide( "playback", this );
 }
 
 void CAMainWin::on_uiAboutQt_triggered() {
@@ -4117,6 +4214,17 @@ Homepage: <a href=\"http://www.canorus.org\">http://www.canorus.org</a></p>").ar
 
 void CAMainWin::on_uiSettings_triggered() {
 	CASettingsDialog( CASettingsDialog::EditorSettings, this );
+	
+	if (CACanorus::settings()->useNoteChecker()) {
+		for (int i=0; i<document()->sheetList().size(); i++) {
+			_noteChecker.checkSheet( document()->sheetList()[i] );
+		}
+	} else {
+		for (int i=0; i<document()->sheetList().size(); i++) {
+			document()->sheetList()[i]->clearNoteCheckerErrors();
+		}
+	}
+	
 	CACanorus::rebuildUI();
 }
 
@@ -4326,7 +4434,7 @@ void CAMainWin::on_uiNoteStemDirection_toggled(bool checked, int id) {
 	CANote::CAStemDirection direction = static_cast<CANote::CAStemDirection>(id);
 	if (mode()==InsertMode)
 		musElementFactory()->setNoteStemDirection( direction );
-	else if (mode()==SelectMode || mode()==EditMode) {
+	else if (mode()==EditMode) {
 		CACanorus::undo()->createUndoCommand( document(), tr("change note stem direction", "undo") );
 		CAScoreView *v = currentScoreView();
 		bool changed=false;
@@ -4409,14 +4517,16 @@ void CAMainWin::updateSheetToolBar() {
 */
 void CAMainWin::updateVoiceToolBar() {
 	CAContext *context = currentContext();
-	if ( mode()==SelectMode && context && context->contextType() == CAContext::Staff ) {
+	if ( context && context->contextType() == CAContext::Staff && currentScoreView() &&
+		 ( (mode()==EditMode && currentScoreView()->selection().size()==0) ||
+		   (mode()==InsertMode && uiInsertPlayable->isChecked()) ) ) {
 		CAStaff *staff = static_cast<CAStaff*>(context);
 		uiNewVoice->setVisible(true);
 		uiNewVoice->setEnabled(true);
 		if (staff->voiceList().size()) {
 			uiVoiceNum->setMax(staff->voiceList().size());
 			int voiceNr = uiVoiceNum->getRealValue();
-			if (voiceNr) {
+			if (currentVoice() && voiceNr) {
 				CAVoice *curVoice = (voiceNr<=staff->voiceList().size()?staff->voiceList()[voiceNr-1]:staff->voiceList()[0]);
 				uiVoiceName->setText(curVoice->name());
 				uiVoiceName->setEnabled(true);
@@ -4447,7 +4557,9 @@ void CAMainWin::updateVoiceToolBar() {
 */
 void CAMainWin::updateContextToolBar() {
 	CAContext *context = currentContext();
-	if (mode()==SelectMode && context) {
+	if (mode()==EditMode &&
+		currentScoreView() && currentScoreView()->selection().size()==0 &&
+		context) {
 		if (!uiInsertPlayable->isChecked())
 			uiContextToolBar->show();
 
@@ -4481,8 +4593,9 @@ void CAMainWin::updateContextToolBar() {
 				break;
 		}
 		uiContextName->setText(context->name());
-	} else
+	} else {
 		uiContextToolBar->hide();
+	}
 }
 
 /*!
@@ -4491,102 +4604,97 @@ void CAMainWin::updateContextToolBar() {
 void CAMainWin::updateInsertToolBar() {
 	if ( currentSheet() ) {
 		uiNewContext->setVisible(true);
-		if (mode()==EditMode) {
-			uiInsertToolBar->show();
-		} else {
-			uiInsertToolBar->show();
-			CAContext *context = currentContext();
-			if (context) {
-				switch (context->contextType()) {
-					case CAContext::Staff:
-						// staff selected
-						uiInsertPlayable->setVisible(true);
-						uiSlurType->defaultAction()->setVisible(true); uiSlurType->defaultAction()->setEnabled(true);
-						//uiSlurType->setVisible(true); // \todo This is needed in order for actions to hide?! -Matevz
-						uiInsertClef->setVisible(true); // menu
-						uiInsertBarline->setVisible(true); // menu
-						uiClefType->defaultAction()->setVisible(true); uiClefType->defaultAction()->setEnabled(true);
-						uiTimeSigType->defaultAction()->setVisible(true); uiTimeSigType->defaultAction()->setEnabled(true);
-						uiInsertKeySig->setVisible(true);
-						uiMarkType->defaultAction()->setVisible(true); uiMarkType->defaultAction()->setEnabled(true);
-						uiArticulationType->defaultAction()->setVisible(true); uiArticulationType->defaultAction()->setEnabled(true);
-						uiInsertTimeSig->setVisible(true);
-						uiBarlineType->defaultAction()->setVisible(true); uiBarlineType->defaultAction()->setEnabled(true);
-						uiInsertFBM->setVisible(false);
-						uiInsertFM->setVisible(false);
-						uiInsertSyllable->setVisible(false);
-						break;
-					case CAContext::FunctionMarkContext:
-						// function mark context selected
-						uiInsertPlayable->setVisible(false);
-						uiSlurType->defaultAction()->setVisible(false);
-						uiInsertClef->setVisible(false); // menu
-						uiInsertBarline->setVisible(false); // menu
-						uiClefType->defaultAction()->setVisible(false);
-						uiTimeSigType->defaultAction()->setVisible(false);
-						uiInsertKeySig->setVisible(false);
-						uiMarkType->defaultAction()->setVisible(false);
-						uiArticulationType->defaultAction()->setVisible(false);
-						uiInsertTimeSig->setVisible(false);
-						uiBarlineType->defaultAction()->setVisible(false);
-						uiInsertFBM->setVisible(false);
-						uiInsertFM->setVisible(true);
-						uiInsertSyllable->setVisible(false);
-						break;
-					case CAContext::LyricsContext:
-						// lyrics context selected
-						uiInsertPlayable->setVisible(false);
-						uiSlurType->defaultAction()->setVisible(false);
-						uiInsertClef->setVisible(false); // menu
-						uiInsertBarline->setVisible(false); // menu
-						uiClefType->defaultAction()->setVisible(false);
-						uiTimeSigType->defaultAction()->setVisible(false);
-						uiInsertKeySig->setVisible(false);
-						uiMarkType->defaultAction()->setVisible(false);
-						uiArticulationType->defaultAction()->setVisible(false);
-						uiInsertTimeSig->setVisible(false);
-						uiBarlineType->defaultAction()->setVisible(false);
-						uiInsertFBM->setVisible(false);
-						uiInsertFM->setVisible(false);
-						uiInsertSyllable->setVisible(true);
-						break;
-					case CAContext::FiguredBassContext:
-						// lyrics context selected
-						uiInsertPlayable->setVisible(false);
-						uiSlurType->defaultAction()->setVisible(false);
-						uiInsertClef->setVisible(false); // menu
-						uiInsertBarline->setVisible(false); // menu
-						uiClefType->defaultAction()->setVisible(false);
-						uiTimeSigType->defaultAction()->setVisible(false);
-						uiInsertKeySig->setVisible(false);
-						uiMarkType->defaultAction()->setVisible(false);
-						uiArticulationType->defaultAction()->setVisible(false);
-						uiInsertTimeSig->setVisible(false);
-						uiBarlineType->defaultAction()->setVisible(false);
-						uiInsertFBM->setVisible(true);
-						uiInsertFM->setVisible(false);
-						uiInsertSyllable->setVisible(false);
-						break;
-				}
-			} else {
-				// no contexts selected
-				uiInsertPlayable->setVisible(false);
-				uiSlurType->defaultAction()->setVisible(false);
-				uiInsertClef->setVisible(false); // menu
-				uiInsertBarline->setVisible(false); // menu
-				uiClefType->defaultAction()->setVisible(false);
-				uiTimeSigType->defaultAction()->setVisible(false);
-				uiInsertKeySig->setVisible(false);
-				uiMarkType->defaultAction()->setVisible(false);
-				uiArticulationType->defaultAction()->setVisible(false);
-				uiInsertTimeSig->setVisible(false);
-				uiBarlineType->defaultAction()->setVisible(false);
-				uiInsertFBM->setVisible(false);
-				uiInsertFM->setVisible(false);
-				uiInsertSyllable->setVisible(false);
+		uiInsertToolBar->show();
+		CAContext *context = currentContext();
+		if (context) {
+			switch (context->contextType()) {
+				case CAContext::Staff:
+					// staff selected
+					uiInsertPlayable->setVisible(true);
+					uiSlurType->defaultAction()->setVisible(true); uiSlurType->defaultAction()->setEnabled(true);
+					//uiSlurType->setVisible(true); // \todo This is needed in order for actions to hide?! -Matevz
+					uiInsertClef->setVisible(true); // menu
+					uiInsertBarline->setVisible(true); // menu
+					uiClefType->defaultAction()->setVisible(true); uiClefType->defaultAction()->setEnabled(true);
+					uiTimeSigType->defaultAction()->setVisible(true); uiTimeSigType->defaultAction()->setEnabled(true);
+					uiInsertKeySig->setVisible(true);
+					uiMarkType->defaultAction()->setVisible(true); uiMarkType->defaultAction()->setEnabled(true);
+					uiArticulationType->defaultAction()->setVisible(true); uiArticulationType->defaultAction()->setEnabled(true);
+					uiInsertTimeSig->setVisible(true);
+					uiBarlineType->defaultAction()->setVisible(true); uiBarlineType->defaultAction()->setEnabled(true);
+					uiInsertFBM->setVisible(false);
+					uiInsertFM->setVisible(false);
+					uiInsertSyllable->setVisible(false);
+					break;
+				case CAContext::FunctionMarkContext:
+					// function mark context selected
+					uiInsertPlayable->setVisible(false);
+					uiSlurType->defaultAction()->setVisible(false);
+					uiInsertClef->setVisible(false); // menu
+					uiInsertBarline->setVisible(false); // menu
+					uiClefType->defaultAction()->setVisible(false);
+					uiTimeSigType->defaultAction()->setVisible(false);
+					uiInsertKeySig->setVisible(false);
+					uiMarkType->defaultAction()->setVisible(false);
+					uiArticulationType->defaultAction()->setVisible(false);
+					uiInsertTimeSig->setVisible(false);
+					uiBarlineType->defaultAction()->setVisible(false);
+					uiInsertFBM->setVisible(false);
+					uiInsertFM->setVisible(true);
+					uiInsertSyllable->setVisible(false);
+					break;
+				case CAContext::LyricsContext:
+					// lyrics context selected
+					uiInsertPlayable->setVisible(false);
+					uiSlurType->defaultAction()->setVisible(false);
+					uiInsertClef->setVisible(false); // menu
+					uiInsertBarline->setVisible(false); // menu
+					uiClefType->defaultAction()->setVisible(false);
+					uiTimeSigType->defaultAction()->setVisible(false);
+					uiInsertKeySig->setVisible(false);
+					uiMarkType->defaultAction()->setVisible(false);
+					uiArticulationType->defaultAction()->setVisible(false);
+					uiInsertTimeSig->setVisible(false);
+					uiBarlineType->defaultAction()->setVisible(false);
+					uiInsertFBM->setVisible(false);
+					uiInsertFM->setVisible(false);
+					uiInsertSyllable->setVisible(true);
+					break;
+				case CAContext::FiguredBassContext:
+					// lyrics context selected
+					uiInsertPlayable->setVisible(false);
+					uiSlurType->defaultAction()->setVisible(false);
+					uiInsertClef->setVisible(false); // menu
+					uiInsertBarline->setVisible(false); // menu
+					uiClefType->defaultAction()->setVisible(false);
+					uiTimeSigType->defaultAction()->setVisible(false);
+					uiInsertKeySig->setVisible(false);
+					uiMarkType->defaultAction()->setVisible(false);
+					uiArticulationType->defaultAction()->setVisible(false);
+					uiInsertTimeSig->setVisible(false);
+					uiBarlineType->defaultAction()->setVisible(false);
+					uiInsertFBM->setVisible(true);
+					uiInsertFM->setVisible(false);
+					uiInsertSyllable->setVisible(false);
+					break;
 			}
+		} else {
+			// no contexts selected
+			uiInsertPlayable->setVisible(false);
+			uiSlurType->defaultAction()->setVisible(false);
+			uiInsertClef->setVisible(false); // menu
+			uiInsertBarline->setVisible(false); // menu
+			uiClefType->defaultAction()->setVisible(false);
+			uiTimeSigType->defaultAction()->setVisible(false);
+			uiInsertKeySig->setVisible(false);
+			uiMarkType->defaultAction()->setVisible(false);
+			uiArticulationType->defaultAction()->setVisible(false);
+			uiInsertTimeSig->setVisible(false);
+			uiBarlineType->defaultAction()->setVisible(false);
+			uiInsertFBM->setVisible(false);
+			uiInsertFM->setVisible(false);
+			uiInsertSyllable->setVisible(false);
 		}
-
 	} else {
 		uiInsertToolBar->hide();
 		uiNewContext->setVisible(false);
@@ -4648,7 +4756,6 @@ void CAMainWin::updatePlayableToolBar() {
 					uiHiddenRest->setChecked(rest->restType()==CARest::Hidden);
 				}
 				uiPlayableToolBar->show();
-				uiVoiceNum->setRealValue( playable->voice()->voiceNumber() );
 			} else {
 				uiPlayableToolBar->hide();
 				uiHiddenRest->setEnabled(false);
@@ -5354,7 +5461,11 @@ void CAMainWin::deleteSelection( CAScoreView *v, bool deleteSyllables, bool dele
 		}
 		if (doUndo)
 			CACanorus::undo()->pushUndoCommand();
-
+		
+		if (CACanorus::settings()->useNoteChecker()) {
+			_noteChecker.checkSheet(v->sheet());
+		}
+		
 		v->clearSelection();
 		CACanorus::rebuildUI(document(), v->sheet());
 	}

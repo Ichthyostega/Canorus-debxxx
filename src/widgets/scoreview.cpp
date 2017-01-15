@@ -20,6 +20,7 @@
 #include <iostream>
 
 #include "widgets/scoreview.h"
+#include "layout/layoutengine.h"
 #include "layout/drawable.h"
 #include "layout/drawablecontext.h"
 #include "layout/drawablelyricscontext.h" // syllable edit creation
@@ -28,8 +29,8 @@
 #include "layout/drawablenote.h"
 #include "layout/drawableaccidental.h"
 #include "layout/drawablebarline.h"
+#include "layout/drawabletimesignature.h"
 
-#include "layout/layoutengine.h"
 #include "score/document.h"
 #include "score/sheet.h"
 #include "score/context.h"
@@ -42,6 +43,8 @@
 #include "score/syllable.h"
 #include "score/text.h"
 #include "score/bookmark.h"
+#include "score/timesignature.h"
+#include "score/barline.h"
 #include "canorus.h"
 #include "core/settings.h"
 
@@ -49,6 +52,7 @@ const int CAScoreView::RIGHT_EXTRA_SPACE = 100;	// Gives some space after the mu
 const int CAScoreView::BOTTOM_EXTRA_SPACE = 30; // Gives some space after the music so you're able to insert new contexts below the last context
 const int CAScoreView::RULER_HEIGHT = 15;
 const int CAScoreView::ANIMATION_STEPS = 7;
+const int CAScoreView::SELECTION_REGION_THRESHOLD = 10;
 
 /*!
 	\class CATextEdit
@@ -138,7 +142,6 @@ void CAScoreView::initScoreView( CASheet *sheet ) {
 	// init virtual canvas
 	_canvas = new QWidget(this);
 	setMouseTracking(true);
-	_canvas->setMouseTracking(true);
 	_repaintArea = 0;
 
 	// init animation stuff
@@ -197,6 +200,7 @@ CAScoreView::~CAScoreView() {
 	// Delete the drawable elements/contexts
 	_drawableMList.clear(true);
 	_drawableCList.clear(true);
+	_drawableNCEList.clear(true);
 
 	while(!_shadowNote.isEmpty()) {
 		delete _shadowNote.takeFirst();
@@ -228,18 +232,31 @@ void CAScoreView::on_animationTimer_timeout() {
 	repaint();
 }
 
+/**
+	Reimplementation of the original QWidget's setMouseTracking to set both the
+	widget and the _canvas mouse tracking property.
+ */
+void CAScoreView::setMouseTracking(bool mt) {
+	CAView::setMouseTracking(mt);
+	_canvas->setMouseTracking(mt);
+}
+
 CAScoreView *CAScoreView::clone() {
 	CAScoreView *v = new CAScoreView(_sheet, static_cast<QWidget*>(parent()));
-
-	v->importElements(&_drawableMList, &_drawableCList);
+	v->rebuild();
+	v->setWorldX( worldX(), false );
+	v->setWorldY( worldY(), false );
+	v->repaint();
 
 	return v;
 }
 
 CAScoreView *CAScoreView::clone(QWidget *parent) {
 	CAScoreView *v = new CAScoreView(_sheet, parent);
-
-	v->importElements(&_drawableMList, &_drawableCList);
+	v->rebuild();
+	v->setWorldX( worldX(), false );
+	v->setWorldY( worldY(), false );
+	v->repaint();
 
 	return v;
 }
@@ -275,6 +292,14 @@ void CAScoreView::addCElement(CADrawableContext *elt, bool select) {
 		_shadowNote << new CANote( CADiatonicPitch(), CAPlayableLength(CAPlayableLength::Quarter, 0), static_cast<CAStaff*>(elt->context())->voiceList()[0], 0 );
 		_shadowDrawableNote << new CADrawableNote(_shadowNote.back(), elt, 0, 0, true);
 	}
+}
+
+/*!
+	Adds a drawable music element \a elt to the score view and selects it, if \a select is true.
+*/
+void CAScoreView::addDrawableNoteCheckerError(CADrawableNoteCheckerError *dnce) {
+	_drawableNCEList.addElement(dnce);
+	_mapDrawable.insertMulti(0, dnce);
 }
 
 /*!
@@ -380,6 +405,13 @@ CADrawableMusElement* CAScoreView::selectMElement(CAMusElement *elt) {
 		return 0;
 }
 
+/**!
+ * This function clones the given drawable instances of musElements and contexts.
+ * 
+ * \obsolete This Function was used in the past when cloning the views to also clone the
+ * elements. This behaviour was replaced for creating a new drawable instances
+ * from the scene from scratch.
+ */
 void CAScoreView::importElements(CAKDTree<CADrawableMusElement*> *origDMusElts, CAKDTree<CADrawableContext*> *origDContexts)
 {
 	QList<CADrawableContext*> drawableContexts = origDContexts->list();
@@ -510,6 +542,7 @@ void CAScoreView::rebuild() {
 	_drawableMList.clear(true);
 	int contextIdx = (_currentContext ? _drawableCList.list().indexOf(_currentContext) : -1);	// remember the index of last used context
 	_drawableCList.clear(true);
+	_drawableNCEList.clear(true);
 	_mapDrawable.clear();
 
 	CALayoutEngine::reposit(this);
@@ -536,9 +569,9 @@ void CAScoreView::rebuild() {
 
 	\warning Repaint is not done automatically!
 */
-void CAScoreView::setWorldX(int x, bool animate, bool force) {
+void CAScoreView::setWorldX(double x, bool animate, bool force) {
 	if (!force) {
-		int maxX = (getMaxXExtended(_drawableMList) > getMaxXExtended(_drawableCList))?getMaxXExtended(_drawableMList) : getMaxXExtended(_drawableCList);
+		double maxX = (getMaxXExtended(_drawableMList) > getMaxXExtended(_drawableCList))?getMaxXExtended(_drawableMList) : getMaxXExtended(_drawableCList);
 		if (x > maxX - _worldW)
 			x = maxX - _worldW;
 		if (x < 0)
@@ -569,7 +602,7 @@ void CAScoreView::setWorldX(int x, bool animate, bool force) {
 
 	\warning Repaint is not done automatically!
 */
-void CAScoreView::setWorldY(int y, bool animate, bool force) {
+void CAScoreView::setWorldY(double y, bool animate, bool force) {
 	if (!force) {
 		int maxY = getMaxYExtended(_drawableMList) > getMaxYExtended(_drawableCList)?getMaxYExtended(_drawableMList) : getMaxYExtended(_drawableCList);
 		if (y > maxY - _worldH)
@@ -602,7 +635,7 @@ void CAScoreView::setWorldY(int y, bool animate, bool force) {
 
 	\warning Repaint is not done automatically!
 */
-void CAScoreView::setWorldWidth(int w, bool force) {
+void CAScoreView::setWorldWidth(double w, bool force) {
 	if (!force) {
 		if (w < 1) return;
 	}
@@ -610,7 +643,7 @@ void CAScoreView::setWorldWidth(int w, bool force) {
 	_oldWorldW = _worldW;
 	_worldW = w;
 
-	int scrollMax;
+	double scrollMax;
 	if ((scrollMax = ((getMaxXExtended(_drawableMList) > getMaxXExtended(_drawableCList))?getMaxXExtended(_drawableMList):getMaxXExtended(_drawableCList)) - _worldW) >= 0) {
 		if (scrollMax < _worldX)	//if you resize the widget at a large zoom level and if the getMax border has been reached
 			setWorldX(scrollMax);	//scroll the view away from the border
@@ -632,7 +665,7 @@ void CAScoreView::setWorldWidth(int w, bool force) {
 
 	\warning Repaint is not done automatically!
 */
-void CAScoreView::setWorldHeight(int h, bool force) {
+void CAScoreView::setWorldHeight(double h, bool force) {
 	if (!force) {
 		if (h < 1) return;
 	}
@@ -640,7 +673,7 @@ void CAScoreView::setWorldHeight(int h, bool force) {
 	_oldWorldH = _worldH;
 	_worldH = h;
 
-	int scrollMax;
+	double scrollMax;
 	if ((scrollMax = ((getMaxYExtended(_drawableMList) > getMaxYExtended(_drawableCList))?getMaxYExtended(_drawableMList):getMaxYExtended(_drawableCList)) - _worldH) >= 0) {
 		if (scrollMax < _worldY)	//if you resize the widget at a large zoom level and if the getMax border has been reached
 			setWorldY(scrollMax);	//scroll the view away from the border
@@ -662,7 +695,7 @@ void CAScoreView::setWorldHeight(int h, bool force) {
 
 	\warning Repaint is not done automatically!
 */
-void CAScoreView::setWorldCoords(QRect coords, bool animate, bool force) {
+void CAScoreView::setWorldCoords(QRectF coords, bool animate, bool force) {
 	_checkScrollBarsDeadLock = true;
 
 	if (!drawableWidth() && !drawableHeight())
@@ -748,10 +781,10 @@ void CAScoreView::zoomToFit(bool animate, bool force) {
 	\warning Repaint is not done automatically!
 */
 void CAScoreView::setCenterCoords(double x, double y, bool animate, bool force) {
-	_checkScrollBarsDeadLock = true;
+//	_checkScrollBarsDeadLock = true;
 	setWorldX(x - 0.5*_worldW, animate, force);
 	setWorldY(y - 0.5*_worldH, animate, force);
-	_checkScrollBarsDeadLock = false;
+//	_checkScrollBarsDeadLock = false;
 
 	checkScrollBars();
 }
@@ -959,19 +992,48 @@ void CAScoreView::paintEvent(QPaintEvent *e) {
 		p.setPen(Qt::black);
 		
 		// draw the barline marks
-		CABarline *curBarline = dStaff->getBarline(_worldX+_worldW);
-		CADrawableBarline *curDBarline = (curBarline?static_cast<CADrawableBarline*>(_mapDrawable.values( dStaff->getBarline(_worldX+width()/_zoom) )[0]):0);
-		int dBarlineIdx = dStaff->drawableBarlineList().indexOf(curDBarline);
-		while ( curDBarline && curDBarline->xPos()>_worldX ) {
-			int center = qRound((curDBarline->xPos()-_worldX)*_zoom);
-			p.drawText( center-1, RULER_HEIGHT-2, QString::number(dBarlineIdx+1) );
+		if(dStaff)
+		{
+			CABarline *curBarline = dStaff->getBarline(_worldX+_worldW);
+			CADrawableBarline *curDBarline = (curBarline?static_cast<CADrawableBarline*>(_mapDrawable.values( dStaff->getBarline(_worldX+width()/_zoom) )[0]):0);
+		
+			// determine the barline number + do we have a pickup measure in the beginning
+			int dBarlineIdx = dStaff->drawableBarlineList().indexOf(curDBarline);
+			CADrawableTimeSignature *firstDTimeSig = (dStaff->drawableTimeSignatureList().size()?dStaff->drawableTimeSignatureList()[0]:0);
+			int barlineOffset = 2;
+			if (curDBarline && firstDTimeSig &&
+				dStaff->drawableBarlineList()[0]->barline()->timeStart() < firstDTimeSig->timeSignature()->barDuration() ) {
+				barlineOffset = 1;
+			}
 			
-			dBarlineIdx--;
-			curDBarline = (dBarlineIdx>=0?dStaff->drawableBarlineList()[dBarlineIdx]:0);
+			while ( curDBarline && curDBarline->xPos()>_worldX ) {
+				int center = qRound((curDBarline->xPos()-_worldX)*_zoom);
+				if (dBarlineIdx!=dStaff->drawableBarlineList().size()-1) { // don't draw the last bar number
+					p.drawText( center-1, RULER_HEIGHT-2, QString::number(dBarlineIdx+barlineOffset) );
+				}
+				
+				dBarlineIdx--;
+				curDBarline = (dBarlineIdx>=0?dStaff->drawableBarlineList()[dBarlineIdx]:0);
+			}
+		}		
+		// TODO: draw the time marks
+	}
+	
+	// draw note checker errors
+	{
+		QList<CADrawableNoteCheckerError*> dnceList = _drawableNCEList.findInRange(_worldX, _worldY, _worldW, _worldH);
+		for (int i=0; i<dnceList.size(); i++) {
+			CADrawSettings c = {
+				_zoom,
+				qRound((dnceList[i]->xPos() - _worldX) * _zoom),
+				qRound((dnceList[i]->yPos() - _worldY) * _zoom),
+				drawableWidth(), drawableHeight(),
+				Qt::red,
+				_worldX,
+				_worldY
+			};
+			dnceList[i]->draw( &p, c );
 		}
-		
-		// draw the time marks
-		
 	}
 	
 	// draw selection regions
@@ -1137,8 +1199,8 @@ void CAScoreView::checkScrollBars() {
 		}
 
 	if (change) {
-		setWorldHeight((int)(drawableHeight() / _zoom));
-		setWorldWidth((int)(drawableWidth() / _zoom));
+		setWorldHeight(drawableHeight() / _zoom);
+		setWorldWidth(drawableWidth() / _zoom);
 	}
 
 	_holdRepaint = false;
@@ -1252,6 +1314,16 @@ void CAScoreView::mouseMoveEvent(QMouseEvent *e) {
 		setCursor(Qt::ArrowCursor);
 
 	emit CAMouseMoveEvent(e, coords);
+}
+
+/*!
+	Calculates the distance between the start of the mouse drag and the current position
+	in world coordinates and returns true, if it is larger than SELECTION_REGION_THRESHOLD.
+	 
+	@return True, if the selection region should be activated; False otherwise.
+ */
+bool CAScoreView::mouseDragActivated() {
+	return qMax(qAbs(_xCursor-_lastMousePressCoords.x()), qAbs(_yCursor-_lastMousePressCoords.y()))*_zoom >= SELECTION_REGION_THRESHOLD;
 }
 
 /*!
@@ -1617,7 +1689,7 @@ void CAScoreView::removeTextEdit() {
 	Returns the maximum X of the viewable World a little bigger to make insertion at the end easy.
 */
 template <typename T>
-int CAScoreView::getMaxXExtended(CAKDTree<T> &v) {
+double CAScoreView::getMaxXExtended(CAKDTree<T> &v) {
 	return v.getMaxX() + RIGHT_EXTRA_SPACE;
 }
 
@@ -1625,7 +1697,7 @@ int CAScoreView::getMaxXExtended(CAKDTree<T> &v) {
 	Returns the maximum Y of the viewable World a little bigger to make insertion at the end easy.
 */
 template <typename T>
-int CAScoreView::getMaxYExtended(CAKDTree<T> &v) {
+double CAScoreView::getMaxYExtended(CAKDTree<T> &v) {
 	return v.getMaxY() + BOTTOM_EXTRA_SPACE;
 }
 
@@ -1702,7 +1774,7 @@ double CAScoreView::timeToCoordsSimpleVersion( int time ) {
 		if (it!=voiceList[i]->musElementList().constEnd()) {
 			if (_mapDrawable.contains(*it)) {
 				CADrawableMusElement *dElt = static_cast<CADrawableMusElement*>(_mapDrawable.values(*it).last());
-				if (leftElt->xPos()<dElt->xPos()) {
+                if (leftElt && leftElt->xPos()<dElt->xPos()) {
 					leftElt = dElt;
 				}
 			} else {
