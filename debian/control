@@ -2,8 +2,18 @@ Source: canorus
 Section: sound
 Priority: optional
 Maintainer: Tobias Quathamer <toddy@debian.org>
-Build-Depends: debhelper (>= 9), cmake, libasound2-dev, libqt4-dev,
- zlib1g-dev
+Build-Depends: debhelper (>= 9),
+	cmake,
+	libasound2-dev,
+	qtbase5-dev (>= 5.3),
+	qttools5-dev-tools,
+	libqt5help5,
+	libqt5svg5-dev,
+ 	libqt5webkit5-dev,
+	swig2.0 (>= 2.0.12),
+	python3-dev,
+	python3-sphinx,
+	zlib1g-dev
 Standards-Version: 3.9.4
 Homepage: http://www.canorus.org/
 Vcs-Git: git://anonscm.debian.org/users/toddy/debian/canorus.git

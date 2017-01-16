@@ -30,7 +30,7 @@ override_dh_install:
 override_dh_clean:
 	dh_clean
 	# Preserve handwritten Makefiles during clean
-	mv doc/usersguide/Makefile doc/usersguide/Makefile.upstream
+	mv doc/usersguide2/Makefile doc/usersguide2/Makefile.upstream
 	mv doc/developersguide/Makefile doc/developersguide/Makefile.upstream
 	# Remove left over files from upstream (there is no distclean target)
 	find -type f -name "*\.qm" | xargs rm -f
@@ -40,7 +40,7 @@ override_dh_clean:
 	find -type f -name "install_manifest\.txt" | xargs rm -f
 	find -type d -name "CMakeFiles" | xargs rm -rf
 	# Restore handwritten Makefiles after clean
-	mv doc/usersguide/Makefile.upstream doc/usersguide/Makefile
+	mv doc/usersguide2/Makefile.upstream doc/usersguide2/Makefile
 	mv doc/developersguide/Makefile.upstream doc/developersguide/Makefile
 
 # This target is for the creation of a new tarball which should
