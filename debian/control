@@ -12,7 +12,7 @@ Build-Depends: debhelper (>= 9),
  	libqt5webkit5-dev,
 	swig2.0 (>= 2.0.12),
 	python3-dev,
-	python3-sphinx,
+	python-sphinx | pyhton3-spinx,
 	zlib1g-dev
 Standards-Version: 3.9.4
 Homepage: http://www.canorus.org/

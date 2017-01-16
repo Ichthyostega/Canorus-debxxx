@@ -8,3 +8,5 @@
 0008-Fix-uninitialized-variables.patch
 0009-cmake-allow-build-with-QT5-from-Debian-Jessie.patch
 0010-fix-include-f-r-QWebView-to-work-with-older-QT-5-ver.patch
+0011-fix-python-unicode-in-user-manual.patch
+0012-fix-generation-of-usermanual.patch

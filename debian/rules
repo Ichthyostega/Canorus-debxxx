@@ -17,6 +17,12 @@ export DEB_CXXFLAGS_MAINT_APPEND = $(shell dpkg-buildflags --get CPPFLAGS)
 override_dh_auto_configure:
 	cmake . -DCMAKE_INSTALL_PREFIX="/usr" -DNO_RUBY=1
 
+override_dh_auto_build:
+	# explicitly build the userguide (not done by CMake yet)
+	# NOTE: on Debian/Jessie, python3-sphinx fails. Must use python-sphinx (python2.x)
+	make -C doc/usersguide2 all
+	dh_auto_build
+
 override_dh_installchangelogs:
 	dh_installchangelogs NEWS
 

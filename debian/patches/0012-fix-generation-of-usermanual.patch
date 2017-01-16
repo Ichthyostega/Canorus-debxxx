@@ -1,0 +1,41 @@
+From: Ichthyostega <prg@ichthyostega.de>
+Date: Mon, 16 Jan 2017 05:40:27 +0100
+Subject: fix generation of usermanual
+
+- CMake rules did not observe $DESTDIR when creating directory for the userguide
+- CMake rules did not use the new directory usersguide2
+- CMake rules did not install the generated HTML
+
+NOTE: no rule in CMake to build the new usersguide2 with python/sphinx
+      Instead, there is a hand written Makefile, thus we need to invoke
+      that directly from debian/rules (using the override mechanism of dh)
+---
+ src/CMakeLists.txt | 15 +++++++++++----
+ 1 file changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index b929f2f..9fa3317 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -759,10 +759,17 @@ INSTALL(FILES ${Canorus_Translation_Bins} DESTINATION "${CMAKE_INSTALL_PREFIX}/$
+ # Install fonts
+ INSTALL(FILES ${Canorus_Fonts} DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}/fonts")
+ # Install users manual, if it exists
+-INSTALL(CODE "FILE(MAKE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}/doc)")
+-INSTALL(CODE "FILE(MAKE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}/doc/usersguide)")
+-FILE(GLOB Canorus_Usersguide RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ../doc/usersguide/*.qhc ../doc/usersguide/*.qch)
+-INSTALL(FILES ${Canorus_Usersguide} DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}/doc/usersguide")
++SET( Usersguide_en "${CMAKE_SOURCE_DIR}/doc/usersguide2/build/en/" )
++SET( Usersguide_sl "${CMAKE_SOURCE_DIR}/doc/usersguide2/build/sl/" )
++SET( Usersguide_nb "${CMAKE_SOURCE_DIR}/doc/usersguide2/build/nb/" )
++SET( Usersguide_target "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}/doc/usersguide" )
++INSTALL(DIRECTORY DESTINATION ${Usersguide_target})
++INSTALL(FILES "${Usersguide_en}index.html" DESTINATION "${Usersguide_target}/en")
++INSTALL(FILES "${Usersguide_sl}index.html" DESTINATION "${Usersguide_target}/sl")
++INSTALL(FILES "${Usersguide_nb}index.html" DESTINATION "${Usersguide_target}/nb")
++INSTALL(DIRECTORY "${Usersguide_en}_static" "${Usersguide_en}_images" DESTINATION ${Usersguide_target}/en)
++INSTALL(DIRECTORY "${Usersguide_sl}_static" "${Usersguide_sl}_images" DESTINATION ${Usersguide_target}/sl)
++INSTALL(DIRECTORY "${Usersguide_nb}_static" "${Usersguide_nb}_images" DESTINATION ${Usersguide_target}/nb)
+ # Install examples
+ #INSTALL( DIRECTORY ${Canorus_Examples} DESTINATION "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}" )
+ 

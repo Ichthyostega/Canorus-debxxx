@@ -1,0 +1,51 @@
+From: Ichthyostega <prg@ichthyostega.de>
+Date: Mon, 16 Jan 2017 05:09:34 +0100
+Subject: fix python/unicode in user manual
+
+---
+ doc/usersguide2/source/en/conf.py | 2 +-
+ doc/usersguide2/source/nb/conf.py | 2 +-
+ doc/usersguide2/source/sl/conf.py | 4 ++--
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/doc/usersguide2/source/en/conf.py b/doc/usersguide2/source/en/conf.py
+index 7b249b4..c15e8ed 100644
+--- a/doc/usersguide2/source/en/conf.py
++++ b/doc/usersguide2/source/en/conf.py
+@@ -45,7 +45,7 @@ master_doc = 'index'
+ 
+ # General information about the project.
+ project = 'Canorus User\'s Guide'
+-copyright = '2016, Matevž Jekovec'
++copyright = u'2016, Matevž Jekovec'
+ 
+ # The version info for the project you're documenting, acts as replacement for
+ # |version| and |release|, also used in various other places throughout the
+diff --git a/doc/usersguide2/source/nb/conf.py b/doc/usersguide2/source/nb/conf.py
+index 8f761eb..76af9ed 100644
+--- a/doc/usersguide2/source/nb/conf.py
++++ b/doc/usersguide2/source/nb/conf.py
+@@ -45,7 +45,7 @@ master_doc = 'index'
+ 
+ # General information about the project.
+ project = 'Canorus Hurtigstart'
+-copyright = '2016, Dag Henning Sørbø'
++copyright = u'2016, Dag Henning Sørbø'
+ 
+ # The version info for the project you're documenting, acts as replacement for
+ # |version| and |release|, also used in various other places throughout the
+diff --git a/doc/usersguide2/source/sl/conf.py b/doc/usersguide2/source/sl/conf.py
+index 93f15c4..31265dc 100644
+--- a/doc/usersguide2/source/sl/conf.py
++++ b/doc/usersguide2/source/sl/conf.py
+@@ -44,8 +44,8 @@ source_suffix = '.rst'
+ master_doc = 'index'
+ 
+ # General information about the project.
+-project = 'Uporabniški priročnik Canorus'
+-copyright = '2016, Matevž Jekovec'
++project = u'Uporabniški priročnik Canorus'
++copyright = u'2016, Matevž Jekovec'
+ 
+ # The version info for the project you're documenting, acts as replacement for
+ # |version| and |release|, also used in various other places throughout the
