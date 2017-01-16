@@ -6,3 +6,4 @@
 0006-Do-not-install-examples.patch
 0007-Compile-with-O2.patch
 0008-Fix-uninitialized-variables.patch
+0009-cmake-allow-build-with-QT5-from-Debian-Jessie.patch
