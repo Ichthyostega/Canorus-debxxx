@@ -12,7 +12,7 @@ export DEB_CFLAGS_MAINT_APPEND   = $(shell dpkg-buildflags --get CPPFLAGS)
 export DEB_CXXFLAGS_MAINT_APPEND = $(shell dpkg-buildflags --get CPPFLAGS)
 
 %:
-	dh $@
+	dh $@ --parallel
 
 override_dh_auto_configure:
 	cmake . -DCMAKE_INSTALL_PREFIX="/usr" -DNO_RUBY=1
