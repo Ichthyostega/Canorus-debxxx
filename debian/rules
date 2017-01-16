@@ -15,7 +15,7 @@ export DEB_CXXFLAGS_MAINT_APPEND = $(shell dpkg-buildflags --get CPPFLAGS)
 	dh $@
 
 override_dh_auto_configure:
-	cmake . -DCMAKE_INSTALL_PREFIX="/usr" -DNO_RUBY=1 -DNO_PYTHON=1
+	cmake . -DCMAKE_INSTALL_PREFIX="/usr" -DNO_RUBY=1
 
 override_dh_installchangelogs:
 	dh_installchangelogs NEWS
