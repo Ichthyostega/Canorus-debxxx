@@ -1,3 +1,13 @@
+canorus (0.7.3~pre+dfsg-1) lumiera-jessie-tools; urgency=low
+
+  * Package ongoing upstream development towards 0.7.3
+  * update build dependencies to Qt5, python-3 and SWIG 2
+  * build and package the userguide
+  * package for Debian/stable (Jessie)
+  * unofficial package, includes all example files
+
+ -- Hermann Vosseler <deb@ichthyostega.de>  Mon, 16 Jan 2017 01:55:48 +0100
+
 canorus (0.7.2~rc1+dfsg-1) lumiera-jessie-tools; urgency=low
 
   * Imported Upstream version 0.7.2~rc1
