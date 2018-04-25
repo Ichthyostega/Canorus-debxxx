@@ -483,7 +483,8 @@ set_source_files_properties(${CANORUS_PYTHON_WRAP_CXX} PROPERTIES COMPILE_FLAGS 
 
 # Set translation files
 FILE(GLOB Canorus_Translation_Srcs "lang/*.ts") # lang/*.ts -> Canorus_Translation_Srcs
-STRING(REGEX REPLACE "\\.ts" ".qm" Canorus_Translation_Bins "${Canorus_Translation_Srcs}") # Set Canorus_Translation_Bins to same values as Canorus_Translation_Srcs with different extensions
+#STRING(REGEX REPLACE "\\.ts" ".qm" Canorus_Translation_Bins "${Canorus_Translation_Srcs}") # Set Canorus_Translation_Bins to same values as Canorus_Translation_Srcs with different extensions
+FILE(GLOB Canorus_Translation_Bins ${CMAKE_BINARY_DIR}"/*.qm") # lang/*.ts -> Canorus_Translation_Srcs
 
 SET(Canorus_Fonts	# Music fonts needed by Canorus
 	fonts/CenturySchL-BoldItal.ttf	# Century family needed for numbers and signs
@@ -568,6 +569,7 @@ INCLUDE_DIRECTORIES("${CMAKE_CURRENT_SOURCE_DIR}/core")
 INCLUDE_DIRECTORIES("${CMAKE_CURRENT_SOURCE_DIR}/ui")
 INCLUDE_DIRECTORIES("${CMAKE_CURRENT_SOURCE_DIR}/widgets")
 INCLUDE_DIRECTORIES("${CMAKE_CURRENT_SOURCE_DIR}/import")
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR})
 
 # These lines add the include paths of the Qt
 # directory to the compiler include paths
@@ -705,6 +707,10 @@ ENDIF(MINGW)
 # Translation #
 ###############
 qt5_create_translation(CANORUS_QM_FILES ${Canorus_UIC_Srcs} ${Canorus_Srcs} ${Canorus_Translation_Srcs} lang/template.ts)
+# Workaround for issue of duplicate ts files getting generated
+# Please write on the Canorus Dev List for a better
+SET(TSFOLDER ${CMAKE_SOURCE_DIR}/src/lang)
+FILE(REMOVE ${TSFOLDER}/*_*.ts)
 qt5_add_translation(CANORUS_QM_FILES ${Canorus_Translation_Srcs} )
 ADD_CUSTOM_TARGET(canorus_qm DEPENDS ${CANORUS_QM_FILES})
 ADD_DEPENDENCIES(canorus canorus_qm)
@@ -712,7 +718,7 @@ ADD_DEPENDENCIES(canorus canorus_qm)
 ###############
 # Dev Install #
 ###############
-message("CANORUS_DEV_INSTALL " ${CANORUS_DEV_INSTALL})
+message("CANORUS_DEV_INSTALL " ${CANORUS_DEV_INSTALL} " CANORUS_INSTALL_PREFIX " ${CANORUS_INSTALL_PREFIX})
 IF(${CANORUS_DEV_INSTALL} MATCHES True)
     ADD_CUSTOM_COMMAND(
         TARGET canorus
@@ -729,8 +735,8 @@ INSTALL(TARGETS canorus
   RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_BIN_DIR}
 )
 IF(USE_RUBY)
-	INSTALL(TARGETS ${SWIG_MODULE_CanorusRuby_REAL_NAME} LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_LIB_DIR})
-	INSTALL(TARGETS ${SWIG_MODULE_CanorusRuby_REAL_NAME} LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR})
+        INSTALL(TARGETS ${SWIG_MODULE_CanorusRuby_REAL_NAME} LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_LIB_DIR})
+        INSTALL(TARGETS ${SWIG_MODULE_CanorusRuby_REAL_NAME} LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR})
 ENDIF(USE_RUBY)
 IF(USE_PYTHON)
 	INSTALL(TARGETS ${SWIG_MODULE_CanorusPython_REAL_NAME} LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_LIB_DIR})

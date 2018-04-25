@@ -30,16 +30,16 @@ Qt5 Build (tested with version 5.6.2)
   (make sure to remove Swig 2.0 before using Swig 3.0)
 - Run cmake with prefix to the Qt installation path (f.e. "/opt/Qt")
 - Create a build folder, outside the source folder and "cd" into it
-  $ cmake -DCMAKE_PREFIX_PATH=/opt/Qt/5.6/gcc_64 ../canorus/trunk
+  $ cmake -DCMAKE_PREFIX_PATH=/opt/Qt/5.6/gcc_64/lib/cmake ../canorus/trunk
 - Ignore the warning about the missing ruby package
 - make -j4 (for dual-core use -j2 switch), on Intel i7 use -j8 / -j4
 
 Note that if you use the old way of building canorus you have to
 disable the local installation of Canorus when calling cmake:
-- $ cmake -DCMAKE_PREFIX_PATH=/opt/Qt/5.6/gcc_64 -DCANORUS_DEV_INSTALL=False
+- $ cmake -DCMAKE_PREFIX_PATH=/opt/Qt/5.6/gcc_64/lib/cmake -DCANORUS_DEV_INSTALL=False
 
 Set it to true to do a test installation for a Release version, f.e.
-- $ cmake -DCMAKE_PREFIX_PATH=/opt/Qt/5.6/gcc_64 -DCMAKE_BUILD_TYPE=Release -DCANORUS_DEV_INSTALL=False
+- $ cmake -DCMAKE_PREFIX_PATH=/opt/Qt/5.6/gcc_64/lib/cmake -DCMAKE_BUILD_TYPE=Release -DCANORUS_DEV_INSTALL=True
 
 Testing Canorus
 ===============
@@ -84,15 +84,31 @@ Installation
 ============
  $ make install
 
-Debian based distributions:
+Compilation under Debian/Ubuntu:
 ===========================
-One-liner to install build dependencies:
- $ sudo apt-get install libqt5-webkit5-dev libqt5svg-dev qtbase5-dev qttools5-dev
+One-liner to install build dependencies on Ubuntu 17.10 Artful Aardvark:
+ $ sudo apt install cmake g++ make libqt5webkit5-dev libqt5svg5-dev qtbase5-dev qttools5-dev qtwebengine5-dev
 
 Download the SVN/release version of canorus, go to Canorus root directory and run:
  $ debian/rules binary
  
 Install the created .deb package.
+
+Debian based shipped binaries
+=============================
+We distribute binaries compiled with the official Qt 5.6 version. Built on xenial.
+
+The debian package has a wrapper script canorus-qt.sh for the debian package
+that includes the libraries. 
+
+This uses a different directory for the libraries intentionally to avoid
+problem with an official installation of Qt 5.6
+
+The second debian binaries expect Qt 5.6 to be installed with the official
+installer in the /opt/Qt folder, precisely /opt/Qt/5.6/gcc_64/lib.
+
+They also may work with libraries of Qt 5.6 from your Distribution.
+Avoid using these with later versions (f.e. 5.7/5.8/5.9) of Qt, instead rebuild.
 
 Troubleshooting:
 ================

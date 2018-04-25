@@ -2744,8 +2744,23 @@ bool CAMainWin::insertMusElementAt(const QPoint coords, CAScoreView *v) {
 		case CAMusElement::Slur: {
 			// Insert tie, slur or phrasing slur
 			if ( v->selection().size() ) { // start note has to always be selected
-				CANote *noteStart = (currentScoreView()->selection().front()->musElement()?dynamic_cast<CANote*>(currentScoreView()->selection().front()->musElement()):0);
-				CANote *noteEnd = (currentScoreView()->selection().back()->musElement()?dynamic_cast<CANote*>(currentScoreView()->selection().back()->musElement()):0);
+				CAMusElement *eltStart = currentScoreView()->selection().front()->musElement();
+				CANote *noteStart = 0;
+				if (eltStart->musElementType()==CAMusElement::Note) {
+					noteStart = static_cast<CANote*>(eltStart);
+				} else
+				if (eltStart->musElementType()==CAMusElement::Mark) {
+					noteStart = dynamic_cast<CANote*>(static_cast<CAMark*>(eltStart)->associatedElement());
+				}
+				
+				CAMusElement *eltEnd = currentScoreView()->selection().back()->musElement();
+				CANote *noteEnd = 0;
+				if (eltEnd->musElementType()==CAMusElement::Note) {
+					noteEnd = static_cast<CANote*>(eltEnd);
+				} else
+				if (eltEnd->musElementType()==CAMusElement::Mark) {
+					noteEnd = dynamic_cast<CANote*>(static_cast<CAMark*>(eltEnd)->associatedElement());
+				}
 
 				// Insert Tie
 				if ( noteStart && musElementFactory()->slurType()==CASlur::TieType ) {
@@ -2772,8 +2787,8 @@ bool CAMainWin::insertMusElementAt(const QPoint coords, CAScoreView *v) {
 					QList<CANote*> noteList = noteStart->voice()->getNoteList();
 					int end = noteList.indexOf(noteEnd);
 					for (int i=noteList.indexOf(noteStart); i<=end; i++)
-						if (((musElementFactory()->slurType()==CASlur::SlurType && (noteList[i]->slurStart())) || noteList[i]->slurEnd()) ||
-						     (((musElementFactory()->slurType()==CASlur::PhrasingSlurType && (noteList[i]->phrasingSlurStart()))) || noteList[i]->phrasingSlurEnd()) )
+						if ((musElementFactory()->slurType()==CASlur::SlurType && (noteList[i]->slurStart() || noteList[i]->slurEnd())) ||
+						    (musElementFactory()->slurType()==CASlur::PhrasingSlurType && (noteList[i]->phrasingSlurStart() || noteList[i]->phrasingSlurEnd())) )
 							return false;
 
 					if (((musElementFactory()->slurType()==CASlur::SlurType && (noteStart->slurStart())) || noteEnd->slurEnd()) ||
@@ -3150,9 +3165,9 @@ bool CAMainWin::saveDocument( QString fileName ) {
 	CACanorus::restartTimeEditedTimes( document() );
 
 	CAExport *save=0;
-	if ( uiSaveDialog->selectedNameFilter()==CAFileFormats::CANORUSML_FILTER ) {
+	if ( fileName.endsWith(".xml") ) { // check the filename extension directly without accessing the uiSaveDialog object due to a bug in Qt. -Matevz
 		save = new CACanorusMLExport();
-	} else if ( uiSaveDialog->selectedNameFilter()==CAFileFormats::CAN_FILTER ) {
+	} else if ( fileName.endsWith(".can") ) {
 		save = new CACanExport();
 	}
 
@@ -5490,12 +5505,13 @@ void CAMainWin::pasteAt( const QPoint coords, CAScoreView *v ) {
 		foreach( CAContext* context, contexts ) {
 			// create a new context if there isn't one of the right type.
 			// exception: if the context is a staff, skip lyrics contexts instead of inserting a staff before a lyrics context.
-			if(context->contextType() == CAContext::Staff)
+			if(context->contextType() == CAContext::Staff) {
 				while(currentContext && currentContext->contextType() == CAContext::LyricsContext)
 					if(currentContext != currentSheet->contextList().last())
 						currentContext = currentSheet->contextList()[currentSheet->contextList().indexOf(currentContext)+1];
 					else
 						currentContext = 0;
+			}
 
 			if(!currentContext || context->contextType() != currentContext->contextType())
 			{
@@ -5553,7 +5569,7 @@ void CAMainWin::pasteAt( const QPoint coords, CAScoreView *v ) {
 					// Can't have playables between two notes linked by a tie. Remove the tie in this case.
 					// FIXME this should be the behavior for insert as well.
 					CAMusElement* leftPl = right;
-				    while((leftPl = staff->voiceList()[i]->previous(leftPl)) && !leftPl->isPlayable());
+					while((leftPl = staff->voiceList()[i]->previous(leftPl)) && !leftPl->isPlayable());
 					CANote* leftNote = (leftPl&&leftPl->musElementType()==CAMusElement::Note)?static_cast<CANote*>(leftPl):0;
 					CASlur* tie = leftNote?leftNote->tieStart():0;
 
