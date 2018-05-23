@@ -1,12 +1,8 @@
 0001-Remove-extra-documentation.patch
-0002-Remove-translation-template.patch
 0003-Reduce-linked-libraries.patch
 0004-Complete-desktop-file.patch
-0005-Do-not-update-translation-files.patch
 0006-Do-not-install-examples.patch
 0007-Compile-with-O2.patch
 0008-Fix-uninitialized-variables.patch
-0009-cmake-allow-build-with-QT5-from-Debian-Jessie.patch
-0010-fix-include-f-r-QWebView-to-work-with-older-QT-5-ver.patch
 0011-fix-python-unicode-in-user-manual.patch
 0012-fix-generation-of-usermanual.patch
