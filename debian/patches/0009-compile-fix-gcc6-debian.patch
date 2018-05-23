@@ -1,0 +1,29 @@
+From: Ichthyostega <prg@ichthyostega.de>
+Date: Wed, 23 May 2018 21:05:15 +0200
+Subject: compile fix gcc6-debian
+
+the well-known problem: Someone (TM) has somehow included <cmath.h>
+
+But the plain-C function abs() does not support floating point numbers,
+while std::abs does.
+
+
+The actual problem or omission here seems to be within the realm of QT5
+---
+ src/layout/drawable.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/layout/drawable.h b/src/layout/drawable.h
+index 39af8ec..e92df15 100644
+--- a/src/layout/drawable.h
++++ b/src/layout/drawable.h
+@@ -8,6 +8,9 @@
+ #ifndef DRAWABLE_H_
+ #define DRAWABLE_H_
+ 
++#include <cmath>
++using std::abs;
++
+ #include <QRect>
+ #include <QColor>
+ 

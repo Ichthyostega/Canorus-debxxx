@@ -6,3 +6,4 @@
 0006-Fix-uninitialized-variables.patch
 0007-fix-python-unicode-in-user-manual.patch
 0008-fix-generation-of-usermanual.patch
+0009-compile-fix-gcc6-debian.patch
