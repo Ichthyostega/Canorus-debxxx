@@ -5,16 +5,20 @@ Subject: fix generation of usermanual
 - CMake rules did not observe $DESTDIR when creating directory for the userguide
 - CMake rules did not use the new directory usersguide2
 - CMake rules did not install the generated HTML
+- src/control/helpctl.cpp expects the manual in "doc:usersguide2/en" etc...
 
 NOTE: no rule in CMake to build the new usersguide2 with python/sphinx
       Instead, there is a hand written Makefile, thus we need to invoke
       that directly from debian/rules (using the override mechanism of dh)
+
+
+nazi
 ---
  src/CMakeLists.txt | 15 +++++++++++----
  1 file changed, 11 insertions(+), 4 deletions(-)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index c35de15..1577077 100644
+index c35de15..5c8741e 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
 @@ -759,10 +759,17 @@ INSTALL(FILES ${Canorus_Translation_Bins} DESTINATION "${CMAKE_INSTALL_PREFIX}/$
@@ -28,7 +32,7 @@ index c35de15..1577077 100644
 +SET( Usersguide_en "${CMAKE_SOURCE_DIR}/doc/usersguide2/build/en/" )
 +SET( Usersguide_sl "${CMAKE_SOURCE_DIR}/doc/usersguide2/build/sl/" )
 +SET( Usersguide_nb "${CMAKE_SOURCE_DIR}/doc/usersguide2/build/nb/" )
-+SET( Usersguide_target "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}/doc/usersguide" )
++SET( Usersguide_target "${CMAKE_INSTALL_PREFIX}/${CANORUS_INSTALL_DATA_DIR}/doc/usersguide2" )
 +INSTALL(DIRECTORY DESTINATION ${Usersguide_target})
 +INSTALL(FILES "${Usersguide_en}index.html" DESTINATION "${Usersguide_target}/en")
 +INSTALL(FILES "${Usersguide_sl}index.html" DESTINATION "${Usersguide_target}/sl")
