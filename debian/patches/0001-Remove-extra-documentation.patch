@@ -8,10 +8,10 @@ Do not install documentation, it's handled by debhelper commands.
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index a652ead..6dc636f 100644
+index 650712c..3f82d9a 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -98,5 +98,5 @@ ADD_SUBDIRECTORY(src)
+@@ -110,5 +110,5 @@ ADD_SUBDIRECTORY(src)
  ADD_SUBDIRECTORY(doc)
  
  # Install README, VERSION, COPYING and other raw txt files

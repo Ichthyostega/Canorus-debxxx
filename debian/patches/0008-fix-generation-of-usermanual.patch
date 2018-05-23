@@ -14,7 +14,7 @@ NOTE: no rule in CMake to build the new usersguide2 with python/sphinx
  1 file changed, 11 insertions(+), 4 deletions(-)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index b929f2f..9fa3317 100644
+index c35de15..1577077 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
 @@ -759,10 +759,17 @@ INSTALL(FILES ${Canorus_Translation_Bins} DESTINATION "${CMAKE_INSTALL_PREFIX}/$

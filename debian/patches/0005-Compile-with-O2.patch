@@ -8,7 +8,7 @@ Necessary for -D_FORTFY_SOURCE=2 and generally recommened (policy 10.1).
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index 5882674..b929f2f 100644
+index 2f097e6..c35de15 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
 @@ -13,7 +13,7 @@ IF(NOT CMAKE_BUILD_TYPE)

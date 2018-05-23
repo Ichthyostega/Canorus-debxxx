@@ -68,7 +68,7 @@ index fc7ba15..26e2a0a 100644
  	while (workTime && (currentTime >= musicLengthToTimeLength( HundredTwentyEighth ))) {
  
 diff --git a/src/ui/mainwin.cpp b/src/ui/mainwin.cpp
-index f7b03f1..786601e 100644
+index d91bbf9..3d308a5 100644
 --- a/src/ui/mainwin.cpp
 +++ b/src/ui/mainwin.cpp
 @@ -1774,7 +1774,7 @@ void CAMainWin::scoreViewMousePress(QMouseEvent *e, const QPoint coords) {
