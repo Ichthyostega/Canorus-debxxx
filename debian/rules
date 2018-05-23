@@ -64,8 +64,8 @@ override_dh_clean:
 # The only free example score is examples/musicxml/Echigo-Jishi.xml,
 # all other scores do not have a license.
 
-UPSTREAM_VERSION=0.7.1rc1
-DEBIAN_VERSION=0.7.1~rc1+dfsg
+UPSTREAM_VERSION=0.7.3.RC1+svn1485
+DEBIAN_VERSION=0.7.3.RC1+svn1485+dfsg
 get-orig-source:
 	rm -rf canorus-$(DEBIAN_VERSION)/
 	tar xaf canorus-$(UPSTREAM_VERSION).tar.bz2
