@@ -1,0 +1,9 @@
+Warning: Licences of the Examples need to be clarified
+
+Especially the contents of the musicxml subdirectory are concerning.
+It would be highly desirable to ship a lot of examples, however, only
+the Echigo-Jishi.xml contains a clear public domain license.
+Many files carry a copyright mark, which in absence of a license
+spec implies there are NO copyrights provided.
+
+
