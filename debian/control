@@ -15,35 +15,30 @@ Build-Depends: debhelper (>= 9),
 	python-sphinx | pyhton3-spinx,
 	zlib1g-dev
 Standards-Version: 3.9.4
-Homepage: http://www.canorus.org/
+Homepage: http://canorus.org/
 Vcs-Git: git://anonscm.debian.org/users/toddy/debian/canorus.git
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=users/toddy/debian/canorus.git;a=summary
 
 Package: canorus
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, canorus-data
-Recommends: lilypond
+Depends: ${shlibs:Depends}, ${misc:Depends}, canorus-data, lilypond (>=2.10)
 Suggests: timidity | fluidsynth
 Description: graphical music score editor
- Canorus is a graphical music score editor written for the Qt4 toolkit.
+ Canorus is a graphical music score editor written for the Qt5 toolkit.
  It is a sequel of the well-known music score editor for Linux, NoteEdit.
  Canorus uses LilyPond for music engraving to achieve a very high quality
  in the resulting documents.
  .
- Canorus offers a number of import and export filters for LilyPond,
- MusicXML, Midi, NoteEdit and others.
+ Canorus is extensible by using plugins written in Python or native C++,
+ and offers a number of import and export filters for LilyPond,  MusicXML,
+ Midi, NoteEdit and others.
 
 Package: canorus-data
 Architecture: all
 Depends: ${shlibs:Depends}, ${misc:Depends}, ttf-freefont
 Recommends: canorus
-Description: data files for canorus, a graphical music score editor
- Canorus is a graphical music score editor written for the Qt4 toolkit.
- It is a sequel of the well-known music score editor for Linux, NoteEdit.
- Canorus uses LilyPond for music engraving to achieve a very high quality
- in the resulting documents.
- .
- Canorus offers a number of import and export filters for LilyPond,
- MusicXML, Midi, NoteEdit and others.
+Suggests: timidity | fluidsynth
+Description: data files for canorus, a graphical music score editor.
+ Canorus is a graphical music score editor written for the Qt5 toolkit.
  .
  This package contains architecture independent data files for canorus.
