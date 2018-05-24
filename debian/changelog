@@ -1,3 +1,9 @@
+canorus (0.7.3.RC1+svn1485+dfsg-1ppa1~bionic1) bionic; urgency=low
+
+  * Rebuild for Ubuntu/Bionic (18.04 LTS)
+
+ -- Hermann Vosseler <deb@ichthyostega.de>  Thu, 24 May 2018 03:03:48 +0200
+
 canorus (0.7.3.RC1+svn1485+dfsg-1~stretch) Lumiera-stretch-tool; urgency=low
 
   * New upstream release 0.7.3 RC1
