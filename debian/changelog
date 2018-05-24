@@ -1,7 +1,9 @@
-canorus (0.7.3.RC1+svn1485+dfsg-1) UNRELEASED; urgency=low
+canorus (0.7.3.RC1+svn1485+dfsg-1~stretch) Lumiera-stretch-tool; urgency=low
 
   * New upstream release 0.7.3 RC1
   * require at least QT 5.6 and Python 3.4
+  * package for Debian/stable (Stretch)
+  * unofficial package, includes all example files
 
  -- Hermann Vosseler <deb@ichthyostega.de>  Wed, 23 May 2018 17:31:21 +0200
 
